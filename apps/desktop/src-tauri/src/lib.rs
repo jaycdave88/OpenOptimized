@@ -30,7 +30,8 @@ use commands::ollama::{ollama_list_models, ollama_pull_model, ollama_status};
 use commands::oo_bootstrap::oo_bootstrap;
 use commands::oo_extras::{
     agency_agents_install, agency_agents_list, flash_moe_install, flash_moe_status,
-    microfish_install, microfish_launch, microfish_status, oo_plugins_list,
+    microfish_install, microfish_launch, microfish_status, oo_plugin_install,
+    oo_plugin_installed_list, oo_plugin_uninstall, oo_plugins_list,
 };
 use commands::oo_mcp::{oo_mcp_restart, oo_mcp_status};
 use commands::opencode_router::{
@@ -237,6 +238,9 @@ pub fn run() {
             microfish_install,
             microfish_launch,
             oo_plugins_list,
+            oo_plugin_installed_list,
+            oo_plugin_install,
+            oo_plugin_uninstall,
             agency_agents_list,
             agency_agents_install
         ])

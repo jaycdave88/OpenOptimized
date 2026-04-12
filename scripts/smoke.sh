@@ -79,7 +79,7 @@ for f in LICENSE LICENSES.md UPSTREAM.md README.md resources/opencode.defaults.j
 done
 
 echo "==> Tauri commands wired in invoke_handler"
-for cmd in ollama_status ollama_list_models ollama_pull_model oo_mcp_status oo_mcp_restart oo_bootstrap flash_moe_status flash_moe_install microfish_status microfish_install microfish_launch oo_plugins_list agency_agents_list agency_agents_install; do
+for cmd in ollama_status ollama_list_models ollama_pull_model oo_mcp_status oo_mcp_restart oo_bootstrap flash_moe_status flash_moe_install microfish_status microfish_install microfish_launch oo_plugins_list oo_plugin_installed_list oo_plugin_install oo_plugin_uninstall agency_agents_list agency_agents_install; do
   if grep -q "${cmd}" "${ROOT}/apps/desktop/src-tauri/src/lib.rs"; then pass "invoke_handler ${cmd}"; else fail "${cmd} not in lib.rs"; fi
 done
 

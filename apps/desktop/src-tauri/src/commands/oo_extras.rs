@@ -157,6 +157,74 @@ pub fn oo_plugins_list(app: AppHandle) -> Result<Value, String> {
     serde_json::from_str(&raw).map_err(|e| e.to_string())
 }
 
+/// Return the list of plugin entries currently present in the user's
+/// opencode.json. Each entry is a string, typically `"user/repo"` or a
+/// package specifier — OpenCode interprets them when it next starts.
+#[tauri::command]
+pub fn oo_plugin_installed_list(app: AppHandle) -> Result<Vec<String>, String> {
+    let path = user_data_dir(&app)?.join("opencode.json");
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let json: Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    let plugins = json
+        .get("plugin")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    Ok(plugins
+        .into_iter()
+        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+        .collect())
+}
+
+/// Add a plugin entry to the user's opencode.json `plugin` array. If the
+/// entry already exists, this is a no-op. Restart of OpenCode is required
+/// for the plugin to take effect; the UI surfaces that separately.
+#[tauri::command]
+pub fn oo_plugin_install(app: AppHandle, spec: String) -> Result<(), String> {
+    mutate_plugin_array(&app, |plugins| {
+        if !plugins.iter().any(|v| v.as_str() == Some(&spec)) {
+            plugins.push(Value::String(spec.clone()));
+        }
+    })
+}
+
+#[tauri::command]
+pub fn oo_plugin_uninstall(app: AppHandle, spec: String) -> Result<(), String> {
+    mutate_plugin_array(&app, |plugins| {
+        plugins.retain(|v| v.as_str() != Some(&spec));
+    })
+}
+
+fn mutate_plugin_array<F>(app: &AppHandle, edit: F) -> Result<(), String>
+where
+    F: FnOnce(&mut Vec<Value>),
+{
+    let path = user_data_dir(app)?.join("opencode.json");
+    let raw = if path.exists() {
+        fs::read_to_string(&path).map_err(|e| e.to_string())?
+    } else {
+        "{}".to_string()
+    };
+    let mut json: Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    if !json.is_object() {
+        return Err("opencode.json is not an object".to_string());
+    }
+    let obj = json.as_object_mut().unwrap();
+    let arr = obj
+        .entry("plugin")
+        .or_insert_with(|| Value::Array(Vec::new()));
+    let plugins = arr
+        .as_array_mut()
+        .ok_or_else(|| "`plugin` is not an array".to_string())?;
+    edit(plugins);
+    let pretty = serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?;
+    fs::write(&path, pretty).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Agency-Agents: browse and install personas from vendor/agency-agents/.
 // Vendored as a git submodule; staged into resources/agency-agents/ at build
