@@ -295,30 +295,46 @@ elif [[ -n "${MLX_CONFIG_RESOLVED}" || "${WITH_MLX}" == "1" ]]; then
   else
     info "config: ${MLX_CONFIG_RESOLVED}"
 
-    # mlx-lm MUST live in Python 3.12+. macOS ships Python 3.9 and makes it
-    # the default `pip3`, but mlx-lm + transformers use features that
-    # silently break there (TokenizersBackend missing, transformers list-vs-dict
-    # regression). Always target Python 3.12 explicitly.
-    if ! python3.12 -c "import mlx_lm" >/dev/null 2>&1; then
-      if confirm "mlx-lm not installed in Python 3.12. Install it there?"; then
-        python3.12 -m pip install --user --quiet --upgrade pip 2>&1 | tee -a "${LOG}" >/dev/null
-        python3.12 -m pip install --user --quiet mlx-lm 2>&1 | tee -a "${LOG}" >/dev/null
-        ok "mlx-lm installed into Python 3.12"
+    # mlx-lm needs Python 3.10+. We install it into an isolated venv under
+    # $APPSUPPORT rather than --user — Homebrew Python 3.12 is marked
+    # "externally managed" (PEP 668), which makes `pip install --user`
+    # fail with a confusing error that's easy to miss. A venv sidesteps
+    # that entirely and keeps mlx-lm's deps off the system Python.
+    MLX_VENV="${HOME}/Library/Application Support/dev.openoptimized.app/mlx-venv"
+    if [[ -x "${MLX_VENV}/bin/python" ]] && "${MLX_VENV}/bin/python" -c "import mlx_lm" >/dev/null 2>&1; then
+      ok "mlx-lm present in venv: ${MLX_VENV}"
+    else
+      if confirm "create isolated mlx-venv and install mlx-lm?"; then
+        # Build the venv (idempotent — `python -m venv` reuses if present).
+        if ! python3.12 -m venv "${MLX_VENV}" 2>&1 | tee -a "${LOG}"; then
+          warn "venv creation failed — see ${LOG}"
+          MLX_CONFIG_RESOLVED=""
+        else
+          # Upgrade pip inside the venv (not --user); these are safe to
+          # fail-noisily because the venv is isolated.
+          "${MLX_VENV}/bin/python" -m pip install --quiet --upgrade pip 2>&1 | tee -a "${LOG}" >/dev/null || true
+          if "${MLX_VENV}/bin/python" -m pip install --quiet mlx-lm 2>&1 | tee -a "${LOG}"; then
+            ok "mlx-lm installed into ${MLX_VENV}"
+          else
+            warn "mlx-lm install failed — tail of ${LOG}:"
+            tail -n 20 "${LOG}" | sed 's/^/    /'
+            MLX_CONFIG_RESOLVED=""
+          fi
+        fi
       else
-        skip "MLX servers (mlx-lm not available in Python 3.12)"
+        skip "MLX servers (mlx-lm not available)"
         MLX_CONFIG_RESOLVED=""
       fi
-    else
-      ok "mlx-lm present in Python 3.12"
     fi
 
     # Heads-up if a stale Python 3.9 install of mlx-lm exists — it's what
-    # will get picked up by the bare `mlx_lm.server` command and break
-    # model loads.
+    # the bare `mlx_lm.server` command used to resolve to, and can cause
+    # confusion during manual debugging (start-mlx.sh now invokes via the
+    # venv's python, so it doesn't matter for automated runs).
     if [[ -f "${HOME}/Library/Python/3.9/bin/mlx_lm.server" ]]; then
-      warn "detected Python 3.9 install at ~/Library/Python/3.9/bin/mlx_lm.server"
-      info "we will invoke mlx_lm.server via 'python3.12 -m mlx_lm.server' to avoid it"
-      info "to remove the 3.9 copy: python3 -m pip uninstall -y mlx-lm transformers"
+      warn "detected stale Python 3.9 install at ~/Library/Python/3.9/bin/mlx_lm.server"
+      info "start-mlx.sh uses the venv Python, so this won't interfere with our setup"
+      info "remove it anyway with: python3 -m pip uninstall -y mlx-lm transformers tokenizers"
     fi
 
     # jq is required by both scripts; it's tiny and universally useful.

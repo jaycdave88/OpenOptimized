@@ -53,11 +53,18 @@ EOF
   exit 2
 fi
 
-# Pick the best Python: require Python 3.12 if available, since
-# mlx-lm + transformers expect 3.10+ and silently fail under macOS's
-# system Python 3.9 (TokenizersBackend errors, etc.).
+# Pick the best Python for mlx_lm.server. Preference order:
+#   1. Our isolated venv at $APPSUPPORT/mlx-venv (what setup.sh creates)
+#   2. System python3.12 IF it has mlx_lm importable (rare — usually needs
+#      --break-system-packages on Homebrew Python)
+#   3. Any python3 >= 3.10 with mlx_lm importable
+# We never fall back to Python 3.9 — mlx-lm + transformers silently break
+# there with TokenizersBackend / list.keys errors.
+MLX_VENV="${USER_DATA_DIR}/mlx-venv"
 MLX_PYTHON=""
-if command -v python3.12 >/dev/null && python3.12 -c "import mlx_lm" >/dev/null 2>&1; then
+if [[ -x "${MLX_VENV}/bin/python" ]] && "${MLX_VENV}/bin/python" -c "import mlx_lm" >/dev/null 2>&1; then
+  MLX_PYTHON="${MLX_VENV}/bin/python"
+elif command -v python3.12 >/dev/null && python3.12 -c "import mlx_lm" >/dev/null 2>&1; then
   MLX_PYTHON="python3.12"
 elif command -v python3 >/dev/null && python3 -c "import sys,mlx_lm; sys.exit(0 if sys.version_info >= (3,10) else 1)" >/dev/null 2>&1; then
   MLX_PYTHON="python3"
@@ -66,9 +73,11 @@ fi
 if [[ -z "${MLX_PYTHON}" ]]; then
   cat >&2 <<EOF
 !! mlx-lm not installed in Python 3.10+.
-   macOS ships Python 3.9, which mlx-lm does not support reliably.
-   Install into Python 3.12 (from Homebrew):
-     python3.12 -m pip install --user mlx-lm
+   Recommended: let setup.sh create an isolated venv at
+     ${MLX_VENV}
+   Or install yourself:
+     python3.12 -m venv "${MLX_VENV}"
+     "${MLX_VENV}/bin/pip" install mlx-lm
    Then re-run this script.
 EOF
   exit 3

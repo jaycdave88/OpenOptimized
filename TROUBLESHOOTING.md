@@ -144,12 +144,31 @@ your way for manual debugging.
 
 ### `mlx_lm.server: command not found`
 
+`setup.sh` installs mlx-lm into an isolated venv at
+`~/Library/Application Support/dev.openoptimized.app/mlx-venv/` to avoid
+PEP 668 (externally-managed) errors on Homebrew Python 3.12. If you
+need to install manually:
+
 ```bash
-python3.12 -m pip install --user mlx-lm
+python3.12 -m venv ~/Library/Application\ Support/dev.openoptimized.app/mlx-venv
+~/Library/Application\ Support/dev.openoptimized.app/mlx-venv/bin/pip install mlx-lm
 ```
 
-Do **not** use `pip3` or `pip` — those resolve to Python 3.9 on macOS
-and will silently install a broken copy.
+Do **not** use `pip3 install mlx-lm` — that goes to macOS's system
+Python 3.9, which mlx-lm doesn't support reliably.
+
+### setup.sh exits silently during the MLX step
+
+Almost always a PEP 668 rejection from Homebrew Python 3.12 swallowed
+by `set -e`. Check the log:
+
+```bash
+tail -n 30 setup.log
+```
+
+Look for `error: externally-managed-environment`. Current `setup.sh`
+uses a dedicated venv so this shouldn't happen — if it does, share the
+log tail.
 
 ### `start-mlx.sh`: "path does not exist"
 
