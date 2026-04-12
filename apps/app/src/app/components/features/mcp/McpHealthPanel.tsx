@@ -21,7 +21,8 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-const FIRST_RUN_KEY = "oo:first-run-complete";
+const FIRST_RUN_KEY = "oo:onboarding-complete-v2";
+const LEGACY_FIRST_RUN_KEYS = ["oo:first-run-complete"];
 
 type McpStatus = "starting" | "up" | "down" | "crashed";
 
@@ -83,6 +84,9 @@ export default function McpHealthPanel() {
   const reshowOnboarding = () => {
     try {
       window.localStorage.removeItem(FIRST_RUN_KEY);
+      for (const legacy of LEGACY_FIRST_RUN_KEYS) {
+        window.localStorage.removeItem(legacy);
+      }
     } catch {
       // ignore
     }

@@ -8,7 +8,11 @@ import { ServerProvider } from "./context/server";
 import { isWebDeployment } from "./lib/openwork-deployment";
 import { isTauriRuntime } from "./utils";
 
-const FIRST_RUN_KEY = "oo:first-run-complete";
+// Onboarding flag. Bump this suffix whenever the Setup overlay gains a new
+// step users should see — anyone who dismissed the previous version of the
+// overlay will get the new one automatically on next launch.
+const FIRST_RUN_KEY = "oo:onboarding-complete-v2";
+const LEGACY_FIRST_RUN_KEYS = ["oo:first-run-complete"];
 
 /**
  * OpenOptimized first-run bootstrap.
@@ -28,7 +32,13 @@ async function runOOBootstrap(): Promise<boolean> {
     console.warn("[openoptimized] bootstrap failed", err);
   }
   try {
-    return typeof window !== "undefined" && !window.localStorage.getItem(FIRST_RUN_KEY);
+    if (typeof window === "undefined") return false;
+    // Migrate: clean up the legacy key so we don't leave stale localStorage
+    // entries hanging around on upgrade.
+    for (const legacy of LEGACY_FIRST_RUN_KEYS) {
+      window.localStorage.removeItem(legacy);
+    }
+    return !window.localStorage.getItem(FIRST_RUN_KEY);
   } catch {
     return false;
   }
