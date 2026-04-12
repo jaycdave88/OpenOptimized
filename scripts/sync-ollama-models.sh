@@ -105,7 +105,7 @@ if [[ "${OO_SYNC_NO_RELAUNCH:-0}" == "1" ]]; then
   exit 0
 fi
 
-running_pid="$(pgrep -f 'OpenOptimized.app/Contents/MacOS/OpenWork-Dev' 2>/dev/null | head -1 || true)"
+running_pid="$( ( pgrep -f 'OpenWork-Dev' 2>/dev/null || true ) | head -1 || true )"
 if [[ -z "${running_pid}" ]]; then
   exit 0
 fi

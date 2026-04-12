@@ -53,10 +53,11 @@ confirm() {
 }
 
 # Helper: detect a running OpenOptimized.app. Tauri bundles it as
-# OpenWork-Dev (see apps/desktop/src-tauri/Cargo.toml default-run); we
-# match on either the bundle name or the binary name.
+# OpenWork-Dev (see apps/desktop/src-tauri/Cargo.toml default-run), so
+# we match on the binary name. `|| true` keeps this safe under
+# set -euo pipefail when nothing matches (pgrep exits 1).
 detect_running_app() {
-  pgrep -f "OpenOptimized.app/Contents/MacOS/OpenWork-Dev" 2>/dev/null | head -1
+  ( pgrep -f "OpenWork-Dev" 2>/dev/null || true ) | head -1
 }
 
 # Helper: find the built .app bundle on disk.
@@ -147,11 +148,11 @@ if [[ "${NO_RELAUNCH}" == "1" ]]; then
   exit 0
 fi
 
-running_pid="$(detect_running_app)"
-app_bundle=""
-if app_bundle="$(find_app_bundle)"; then
-  :
-fi
+running_pid="$(detect_running_app || true)"
+app_bundle="$(find_app_bundle || true)"
+
+echo "[restore] running pid: ${running_pid:-<none>}"
+echo "[restore] app bundle:  ${app_bundle:-<not found>}"
 
 if [[ -n "${running_pid}" ]]; then
   if confirm "OpenOptimized is running (pid ${running_pid}). Relaunch it now to pick up the new opencode.json?"; then
