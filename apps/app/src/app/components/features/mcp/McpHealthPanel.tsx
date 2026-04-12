@@ -1,11 +1,9 @@
 /**
  * features/mcp/McpHealthPanel.tsx
  *
- * Bundled MCP health panel. Always shows all 4 known MCPs with
- * descriptions, toggle switches, status badges, and restart controls.
- *
- * Data source: Tauri event `mcp.status` (emitted by @oo/mcp-supervisor via
- * the Rust bridge) and command `mcp_restart`.
+ * MCP health panel showing both connected OpenCode MCPs and bundled
+ * supervisor MCPs. Connected MCPs come from the connections store;
+ * bundled MCPs come from the Tauri `mcp.status` event bridge.
  */
 
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
@@ -17,11 +15,18 @@ import {
   Circle,
   Loader2,
   ChevronDown,
+  Plug2,
+  MonitorSmartphone,
+  Globe,
+  Zap,
+  BookOpen,
 } from "lucide-solid";
 import { invoke } from "@tauri-apps/api/core";
 import { copyToClipboard } from "../../../lib/clipboard";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import ConfirmModal from "../../confirm-modal";
+import { useConnections } from "../../../connections/provider";
+import type { McpServerEntry, McpStatusMap } from "../../../types";
 
 const FIRST_RUN_KEY = "oo:onboarding-complete-v2";
 const LEGACY_FIRST_RUN_KEYS = ["oo:first-run-complete"];
@@ -57,7 +62,7 @@ const STATUS_ICON = {
 const STATUS_BADGE: Record<McpStatus, { label: string; classes: string }> = {
   up: { label: "Connected", classes: "bg-green-3 text-green-11" },
   starting: { label: "Starting", classes: "bg-amber-3 text-amber-11" },
-  down: { label: "Down", classes: "bg-gray-3 text-gray-11" },
+  down: { label: "Not Installed", classes: "bg-purple-3 text-purple-11" },
   crashed: { label: "Crashed", classes: "bg-red-3 text-red-11" },
 };
 
@@ -79,10 +84,47 @@ interface MergedRow {
   lastError?: string;
 }
 
+/* ── Connected MCP helpers ────────────────────────────── */
+
+type ConnectedMcpStatus = "connected" | "needs_auth" | "needs_client_registration" | "failed" | "disabled" | "disconnected";
+
+const CONNECTED_BADGE: Record<ConnectedMcpStatus, { label: string; classes: string }> = {
+  connected: { label: "Connected", classes: "bg-green-3 text-green-11" },
+  needs_auth: { label: "Needs Auth", classes: "bg-amber-3 text-amber-11" },
+  needs_client_registration: { label: "Needs Auth", classes: "bg-amber-3 text-amber-11" },
+  failed: { label: "Failed", classes: "bg-red-3 text-red-11" },
+  disabled: { label: "Disabled", classes: "bg-gray-3 text-gray-11" },
+  disconnected: { label: "Disconnected", classes: "bg-gray-3 text-gray-11" },
+};
+
+const connectedServiceIcon = (name: string) => {
+  const lower = name.toLowerCase();
+  if (lower.includes("context")) return Globe;
+  if (lower.includes("chrome") || lower.includes("devtools")) return MonitorSmartphone;
+  if (lower.includes("linear")) return Zap;
+  if (lower.includes("notion")) return BookOpen;
+  return Plug2;
+};
+
 export default function McpHealthPanel() {
+  const connections = useConnections();
   const [rows, setRows] = createSignal<McpStateSnapshot[]>([]);
   const [expandedError, setExpandedError] = createSignal<string | null>(null);
   const [onboardingConfirmOpen, setOnboardingConfirmOpen] = createSignal(false);
+
+  /* ── Connected OpenCode MCPs ──────────────────────── */
+  const opencodeMcps = () => connections.mcpServers();
+  const opencodeStatuses = () => connections.mcpStatuses();
+
+  const resolveConnectedStatus = (entry: McpServerEntry): ConnectedMcpStatus => {
+    if (entry.config.enabled === false) return "disabled";
+    const resolved = (opencodeStatuses() ?? {})[entry.name];
+    return resolved?.status ?? "disconnected";
+  };
+
+  const connectedCount = createMemo(
+    () => Object.values(connections.mcpStatuses() ?? {}).filter((status) => status?.status === "connected").length,
+  );
 
   onMount(async () => {
     const initial = await invoke<McpStateSnapshot[]>("oo_mcp_status").catch(() => []);
@@ -171,8 +213,80 @@ export default function McpHealthPanel() {
         </div>
       </div>
 
-      {/* ── MCP cards ────────────────────────────────── */}
+      {/* ── Connected Apps (OpenCode MCPs) ─────────── */}
+      <Show when={opencodeMcps().length > 0}>
+        <div class="flex flex-col gap-2.5">
+          <div class="flex items-center gap-2">
+            <h3 class="text-[11px] font-bold text-dls-secondary uppercase tracking-widest">Connected Apps</h3>
+            <Show when={connectedCount() > 0}>
+              <span class="inline-flex items-center gap-1 rounded-full bg-green-3 px-2 py-0.5 text-[10px] font-medium text-green-11">
+                {connectedCount()} active
+              </span>
+            </Show>
+          </div>
+          <For each={opencodeMcps()}>
+            {(entry) => {
+              const status = () => resolveConnectedStatus(entry);
+              const badge = () => CONNECTED_BADGE[status()];
+              const Icon = connectedServiceIcon(entry.name);
+              const isConnected = () => status() === "connected";
+              const typeLabel = () => entry.config.type === "remote" ? "Remote" : "Local";
+
+              return (
+                <div class="rounded-xl border border-dls-border bg-dls-surface transition-colors">
+                  <div class="flex items-center gap-3 px-4 py-3.5">
+                    {/* Icon tile */}
+                    <div class={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
+                      isConnected() ? "bg-green-3 border-green-6" : "bg-dls-hover border-dls-border"
+                    }`}>
+                      <Icon size={16} class={isConnected() ? "text-green-11" : "text-dls-secondary"} />
+                    </div>
+
+                    {/* Name + description */}
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2">
+                        <span class="text-sm font-semibold text-dls-text">{entry.name}</span>
+                        <span class={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${badge().classes}`}>
+                          {badge().label}
+                        </span>
+                        <span class="text-[10px] text-dls-secondary bg-dls-hover px-1.5 py-0.5 rounded-md">
+                          {typeLabel()}
+                        </span>
+                      </div>
+                      <p class="mt-0.5 text-xs text-dls-secondary leading-relaxed">
+                        {entry.config.type === "remote" ? entry.config.url : entry.config.command?.join(" ")}
+                      </p>
+                    </div>
+
+                    {/* Toggle pill */}
+                    <button
+                      class={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                        isConnected() ? "bg-green-9" : "bg-gray-7"
+                      }`}
+                      onClick={() => {
+                        if (isConnected()) {
+                          connections.removeMcp(entry.name);
+                        }
+                      }}
+                      title={isConnected() ? "Connected" : "Disconnected"}
+                    >
+                      <span
+                        class={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
+                          isConnected() ? "translate-x-[18px]" : "translate-x-[3px]"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              );
+            }}
+          </For>
+        </div>
+      </Show>
+
+      {/* ── Bundled Servers (supervisor MCPs) ─────────── */}
       <div class="flex flex-col gap-2.5">
+        <h3 class="text-[11px] font-bold text-dls-secondary uppercase tracking-widest">Bundled Servers</h3>
         <For each={mergedRows()}>
           {(r) => {
             const Icon = () => STATUS_ICON[r.status];
