@@ -1,8 +1,66 @@
 # OpenOptimized changelog
 
-Each entry corresponds to one wave shipped on `claude/review-projects-Yh6gW`.
+Each entry corresponds to one wave of work. All waves 0 through 8 are
+shipped on `main`; `claude/review-projects-Yh6gW` was the feature branch
+during development and was merged into `main` as the new default branch
+after Wave 8.
 
-## Wave 7 — Contributor tooling (d80a3a1..HEAD)
+## Wave 9 — Main branch + Mac Studio installer
+
+- `claude/review-projects-Yh6gW` merged into `main`; `main` set as the
+  default GitHub branch.
+- `.github/workflows/oo-smoke.yml` trigger branches reduced to `main`
+  (dropped the now-irrelevant `claude/**` glob).
+- `setup.sh` added at the repo root: one-shot Mac Studio bring-up from a
+  clean machine. Idempotent. Installs Xcode CLI tools, Homebrew, Node 22,
+  pnpm 10, Bun, Rust with Apple targets, Python 3.12, Ollama with default
+  models (`qwen2.5-coder:14b`, `nomic-embed-text`), initialises the seven
+  `vendor/` submodules, runs `pnpm install`, builds the universal `.app`,
+  and opens it. Flags: `--skip-ollama`, `--skip-models`, `--skip-build`,
+  `--skip-launch`, `--with-python`, `--yes`.
+- README rewritten for 100% accuracy against the post-Wave-8 reality:
+  integration matrix confirmed, layout reflects actual `vendor/`,
+  `apps/oo-supervisor/`, `resources/sidecar/`, and the new `setup.sh`
+  entrypoint promoted above the manual build instructions.
+- CONTRIBUTING gains a "First time on a Mac Studio" section pointing at
+  `setup.sh`.
+
+## Wave 8 — Pre-test readiness (fd5c0f7..67d96cf)
+
+Fixed the 12 items surfaced in the pre-test audit so a Mac Studio can
+actually run `setup.sh` → `.app` end-to-end.
+
+- **Build unblockers**: regenerated `pnpm-lock.yaml`; added
+  `apps/oo-supervisor/script/build.ts` + `build:bin` scripts (bun
+  compile pattern); dropped stale `resources/deerflow/` and
+  `resources/autoresearch/` glob entries from `tauri.conf.json`;
+  `scripts/build-mac.sh` now compiles `oo-supervisor`, runs OpenWork's
+  `build:sidecars` chain, invokes `prepare-sidecar.mjs`, and copies
+  `oo-supervisor` into `apps/desktop/src-tauri/sidecars/` so every
+  `externalBin` has a real file.
+- **First-launch flow**: `Setup.tsx` mounted as a first-run modal overlay
+  in `entry.tsx`, gated on a localStorage flag. Three-step flow (system
+  check → Ollama → MCP boot) reads real Tauri commands. New
+  `commands/oo_system.rs` / `oo_system_check` probes Python 3.12,
+  Node, Ollama, git with install hints.
+- **MCP supervisor bridge**: `commands/oo_mcp.rs` rewritten to spawn
+  `apps/oo-supervisor` on demand (`OnceLock<Mutex<…>>`), read its stdout,
+  forward `mcp.status` / `mcp.stderr` / `mcp.ready` events to the UI;
+  `oo_mcp_restart` writes `{"type":"restart","id":…}` to the supervisor's
+  stdin. New `oo_mcp_boot` command for explicit spawn from onboarding.
+- **ModeSwitcher in composer**: `ComposerProps` gains optional `mode` +
+  `onModeChange`; `OOModeSwitcher` renders above the composer card as a
+  Solid sibling of the React island. Unchanged when props omitted.
+- **Plugin restart loop closed**: PluginsBrowser yellow banner now has a
+  Restart OpenCode button wired to `engine_restart`.
+- **Flash-MoE installer**: attempts Makefile/build.sh with captured log,
+  surfaces upstream `download-weights.sh` rather than auto-fetching
+  multi-GB weights, records `build_succeeded` in INSTALLED.json.
+- **Docs**: `TROUBLESHOOTING.md` (common failure modes with fixes) +
+  `QA-CHECKLIST.md` (7-section manual test plan).
+- **Smoke**: 19 Tauri commands registered, all green in `--offline`.
+
+## Wave 7 — Contributor tooling (d80a3a1..fd5c0f7)
 
 - `scripts/upstream-diff.sh` — reports commits-ahead per `vendor/*`
   submodule plus the OpenWork fork-point compare URL. Run before a

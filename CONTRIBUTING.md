@@ -4,7 +4,19 @@ OpenOptimized is a hard fork of OpenWork that bundles a curated stack of
 MCP servers, Python sidecars, and agent personas via git submodules. This
 guide describes the clone/build/update workflow.
 
-## Clone with submodules
+## First time on a Mac Studio
+
+If you're getting started on a fresh Apple Silicon Mac, the one-shot
+installer handles everything — Xcode CLI, Homebrew, Node/pnpm/Bun, Rust,
+Python 3.12, Ollama, submodules, `pnpm install`, and the full `.app` build:
+
+```bash
+git clone --recursive https://github.com/jaycdave88/OpenOptimized.git
+cd OpenOptimized
+./setup.sh            # idempotent; --help for flags
+```
+
+## Clone with submodules (if you skip setup.sh)
 
 ```bash
 git clone --recursive https://github.com/jaycdave88/OpenOptimized.git

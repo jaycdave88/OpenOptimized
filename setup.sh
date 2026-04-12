@@ -1,0 +1,302 @@
+#!/usr/bin/env bash
+#
+# setup.sh — one-shot Mac Studio bring-up for OpenOptimized
+#
+# Idempotent: safe to re-run. Each step checks whether it's already done
+# and skips if so. Designed for a fresh macOS 13+ install on Apple Silicon.
+#
+# Flow (all optional but default-on):
+#
+#   1. Xcode CLI tools           — git, make, compilers
+#   2. Homebrew                  — package manager
+#   3. Node 22 + pnpm + bun      — JS/TS toolchain
+#   4. Rust toolchain            — Tauri desktop build
+#   5. Python 3.12               — MCP/sidecar venvs
+#   6. Ollama + default models   — local inference
+#   7. git submodule update      — vendor/* sources
+#   8. pnpm install              — workspace deps
+#   9. scripts/build-mac.sh      — universal .app
+#  10. open the .app             — launch it
+#
+# Flags:
+#   --skip-ollama       skip Ollama install + model pulls
+#   --skip-models       install Ollama but skip pulling default models
+#   --skip-build        stop after deps, don't run build-mac.sh
+#   --skip-launch       build but don't auto-open the .app
+#   --with-python       force Python install even if python3 is present
+#   --yes               don't prompt for anything (for CI / automation)
+#
+# Run from the repo root:
+#   ./setup.sh
+#
+# Log lives at ./setup.log and is also tailed to stdout.
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Arg parsing + setup
+# ---------------------------------------------------------------------------
+
+SKIP_OLLAMA=0
+SKIP_MODELS=0
+SKIP_BUILD=0
+SKIP_LAUNCH=0
+FORCE_PYTHON=0
+ASSUME_YES=0
+for arg in "$@"; do
+  case "$arg" in
+    --skip-ollama) SKIP_OLLAMA=1 ;;
+    --skip-models) SKIP_MODELS=1 ;;
+    --skip-build)  SKIP_BUILD=1 ;;
+    --skip-launch) SKIP_LAUNCH=1 ;;
+    --with-python) FORCE_PYTHON=1 ;;
+    --yes|-y)      ASSUME_YES=1 ;;
+    -h|--help)
+      sed -n '2,35p' "$0"
+      exit 0
+      ;;
+    *) echo "unknown flag: $arg" >&2; exit 2 ;;
+  esac
+done
+
+cd "$(dirname "$0")"
+ROOT="$(pwd)"
+LOG="${ROOT}/setup.log"
+: > "${LOG}"
+
+RED="\033[31m"; GRN="\033[32m"; YLW="\033[33m"; CYA="\033[36m"; DIM="\033[2m"; RST="\033[0m"
+step()  { printf "${CYA}==> %s${RST}\n" "$*" | tee -a "${LOG}"; }
+ok()    { printf "    ${GRN}ok${RST}    %s\n" "$*" | tee -a "${LOG}"; }
+skip()  { printf "    ${YLW}skip${RST}  %s\n" "$*" | tee -a "${LOG}"; }
+warn()  { printf "    ${YLW}warn${RST}  %s\n" "$*" | tee -a "${LOG}"; }
+fail()  { printf "    ${RED}fail${RST}  %s\n" "$*" | tee -a "${LOG}"; exit 1; }
+info()  { printf "    ${DIM}%s${RST}\n" "$*" | tee -a "${LOG}"; }
+
+confirm() {
+  local prompt="$1"
+  if [[ "${ASSUME_YES}" == "1" ]]; then return 0; fi
+  read -r -p "    ${prompt} [Y/n] " ans
+  [[ -z "${ans}" || "${ans}" =~ ^[Yy]$ ]]
+}
+
+# ---------------------------------------------------------------------------
+# Preflight
+# ---------------------------------------------------------------------------
+
+step "Preflight"
+
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+if [[ "${OS}" != "Darwin" ]]; then
+  fail "OpenOptimized targets macOS; detected ${OS}"
+fi
+ok "macOS ${ARCH}"
+
+if [[ "${ARCH}" != "arm64" ]]; then
+  warn "Apple Silicon recommended (Mac Studio M-series); Intel may work but is untested"
+fi
+
+SW_VERS="$(sw_vers -productVersion 2>/dev/null || echo unknown)"
+info "macOS ${SW_VERS}"
+
+# ---------------------------------------------------------------------------
+# 1. Xcode CLI tools
+# ---------------------------------------------------------------------------
+
+step "Xcode Command Line Tools"
+if xcode-select -p >/dev/null 2>&1; then
+  ok "already installed at $(xcode-select -p)"
+else
+  info "triggering install dialog (accept the GUI prompt, then re-run this script)"
+  xcode-select --install || true
+  fail "install Xcode CLI tools, then re-run ./setup.sh"
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Homebrew
+# ---------------------------------------------------------------------------
+
+step "Homebrew"
+if command -v brew >/dev/null; then
+  ok "$(brew --version | head -1)"
+else
+  if confirm "install Homebrew?"; then
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2>&1 | tee -a "${LOG}"
+    # On Apple Silicon, brew installs to /opt/homebrew — ensure it's on PATH.
+    if [[ -x /opt/homebrew/bin/brew ]]; then
+      eval "$(/opt/homebrew/bin/brew shellenv)"
+    fi
+  else
+    fail "Homebrew is required"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Node 22 + pnpm + bun
+# ---------------------------------------------------------------------------
+
+step "Node.js 22"
+if command -v node >/dev/null && [[ "$(node --version)" == v22.* ]]; then
+  ok "$(node --version)"
+else
+  info "installing node@22 via Homebrew"
+  brew install node@22 2>&1 | tee -a "${LOG}" >/dev/null
+  brew link --overwrite --force node@22 2>&1 | tee -a "${LOG}" >/dev/null
+  ok "$(node --version)"
+fi
+
+step "pnpm 10"
+if command -v pnpm >/dev/null; then
+  ok "$(pnpm --version)"
+else
+  npm install -g pnpm@10.27.0 2>&1 | tee -a "${LOG}" >/dev/null
+  ok "$(pnpm --version)"
+fi
+
+step "Bun"
+if command -v bun >/dev/null; then
+  ok "$(bun --version)"
+else
+  curl -fsSL https://bun.sh/install | bash 2>&1 | tee -a "${LOG}" >/dev/null
+  # Bun installs to ~/.bun/bin; add to PATH for this session.
+  export PATH="${HOME}/.bun/bin:${PATH}"
+  ok "$(bun --version)"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Rust toolchain (Tauri)
+# ---------------------------------------------------------------------------
+
+step "Rust toolchain"
+if command -v rustup >/dev/null; then
+  ok "$(rustc --version)"
+else
+  info "installing via rustup (default toolchain, no prompt)"
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable 2>&1 | tee -a "${LOG}" >/dev/null
+  # shellcheck disable=SC1091
+  source "${HOME}/.cargo/env"
+  ok "$(rustc --version)"
+fi
+
+info "adding Apple targets (arm64 + x86_64) for universal binaries"
+rustup target add aarch64-apple-darwin x86_64-apple-darwin 2>&1 | tee -a "${LOG}" >/dev/null
+ok "rust targets: aarch64-apple-darwin, x86_64-apple-darwin"
+
+# ---------------------------------------------------------------------------
+# 5. Python 3.12
+# ---------------------------------------------------------------------------
+
+step "Python 3.12"
+if command -v python3.12 >/dev/null; then
+  ok "$(python3.12 --version)"
+elif [[ "${FORCE_PYTHON}" == "1" ]] || ! command -v python3 >/dev/null; then
+  brew install python@3.12 2>&1 | tee -a "${LOG}" >/dev/null
+  ok "$(python3.12 --version)"
+else
+  warn "python3.12 missing but python3 present ($(python3 --version)); MCPs may fall back, but 3.12 is recommended"
+  if confirm "install python@3.12 via Homebrew?"; then
+    brew install python@3.12 2>&1 | tee -a "${LOG}" >/dev/null
+    ok "$(python3.12 --version)"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# 6. Ollama
+# ---------------------------------------------------------------------------
+
+if [[ "${SKIP_OLLAMA}" == "0" ]]; then
+  step "Ollama"
+  if command -v ollama >/dev/null; then
+    ok "$(ollama --version 2>&1 | head -1)"
+  else
+    if confirm "install Ollama via Homebrew cask?"; then
+      brew install --cask ollama 2>&1 | tee -a "${LOG}" >/dev/null
+      ok "installed"
+    else
+      skip "Ollama (OpenOptimized will boot in cloud-only mode)"
+      SKIP_MODELS=1
+    fi
+  fi
+
+  if [[ "${SKIP_MODELS}" == "0" ]]; then
+    step "Ollama default models"
+    if ! curl -s --max-time 1 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
+      info "starting Ollama server in background"
+      open -a Ollama 2>/dev/null || true
+      sleep 2
+    fi
+    for model in qwen2.5-coder:14b nomic-embed-text; do
+      if ollama list 2>/dev/null | grep -q "^${model}"; then
+        ok "model ${model} already pulled"
+      else
+        info "pulling ${model} (this can be multi-GB; safe to ctrl-c and resume)"
+        ollama pull "${model}" 2>&1 | tee -a "${LOG}" || warn "pull of ${model} failed; you can retry later from Settings → Models"
+      fi
+    done
+  fi
+else
+  skip "Ollama install (--skip-ollama)"
+fi
+
+# ---------------------------------------------------------------------------
+# 7. Submodules
+# ---------------------------------------------------------------------------
+
+step "git submodules (vendor/)"
+git submodule update --init --depth=1 2>&1 | tee -a "${LOG}" >/dev/null
+for repo in cocoindex-code mempalace graphify context-mode deer-flow autoresearch agency-agents; do
+  if [[ -d "vendor/${repo}" ]] && git -C "vendor/${repo}" rev-parse HEAD >/dev/null 2>&1; then
+    ok "vendor/${repo} @ $(git -C "vendor/${repo}" rev-parse --short HEAD)"
+  else
+    fail "vendor/${repo} failed to initialize"
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# 8. pnpm install
+# ---------------------------------------------------------------------------
+
+step "pnpm install"
+pnpm install 2>&1 | tee -a "${LOG}" | tail -5
+ok "workspace deps installed"
+
+# ---------------------------------------------------------------------------
+# 9. Build the .app
+# ---------------------------------------------------------------------------
+
+if [[ "${SKIP_BUILD}" == "0" ]]; then
+  step "Building OpenOptimized.app (universal binary, unsigned)"
+  info "this runs scripts/build-mac.sh — expect 5-15 minutes on first build"
+  ./scripts/build-mac.sh 2>&1 | tee -a "${LOG}"
+  APP_PATH=$(find apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name "*.app" -print -quit 2>/dev/null || true)
+  if [[ -z "${APP_PATH}" ]]; then
+    fail "build finished but no .app found at expected location (see ${LOG})"
+  fi
+  ok "built: ${APP_PATH}"
+else
+  skip "build (--skip-build)"
+fi
+
+# ---------------------------------------------------------------------------
+# 10. Launch
+# ---------------------------------------------------------------------------
+
+if [[ "${SKIP_BUILD}" == "0" && "${SKIP_LAUNCH}" == "0" ]]; then
+  step "Launching OpenOptimized.app"
+  info "first launch: macOS Gatekeeper will prompt because the build is unsigned."
+  info "right-click the .app in Finder, choose Open, confirm. After that, double-click works."
+  if confirm "open now?"; then
+    open "${APP_PATH}"
+    ok "launched"
+  else
+    skip "launch (run: open ${APP_PATH})"
+  fi
+fi
+
+echo ""
+step "setup complete"
+info "log:           ${LOG}"
+info "smoke test:    ./scripts/smoke.sh --offline"
+info "drift audit:   ./scripts/upstream-diff.sh"
+info "troubleshoot:  TROUBLESHOOTING.md"
+info "QA checklist:  QA-CHECKLIST.md"

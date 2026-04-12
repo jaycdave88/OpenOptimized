@@ -4,120 +4,150 @@
 
 OpenOptimized is a hard fork of [OpenWork](https://github.com/jaycdave88/openwork)
 that ships as a single macOS `.app`, pre-wires [OpenCode](https://opencode.ai)
-against local Ollama models, and bundles a curated stack of MCP servers and
-agent sidecars for memory, code indexing, context pruning, orchestration, and
-research — all configured out of the box.
+against local Ollama models, and bundles a curated stack of MCP servers, Python
+sidecars, and agent personas for memory, code indexing, context pruning,
+orchestration, and research — all configured out of the box.
+
+## Quick start (Mac Studio / Apple Silicon)
+
+Clone the repo, then run the one-shot installer from the repo root:
+
+```bash
+git clone --recursive https://github.com/jaycdave88/OpenOptimized.git
+cd OpenOptimized
+./setup.sh
+```
+
+`setup.sh` is idempotent. It installs everything needed on a clean Mac Studio
+(Xcode CLI tools, Homebrew, Node 22, pnpm 10, Bun, Rust with Apple targets,
+Python 3.12, Ollama with default models), initialises the seven `vendor/`
+submodules, runs `pnpm install`, builds the universal unsigned `.app`, and
+opens it. See `setup.sh --help` for flags (`--skip-ollama`, `--skip-models`,
+`--skip-build`, `--yes`).
+
+First launch triggers an onboarding overlay that verifies prerequisites and
+brings up the MCP servers. Gatekeeper will warn once because the build is
+unsigned — right-click the `.app`, choose Open, confirm. Subsequent launches
+open normally.
 
 ## Status
 
-**Phases 0–2 complete; final integration wave landed.** OpenWork is forked in,
-rebranded, and stripped of `/ee`. Five `@oo/*` packages ship with real
-public APIs. Six Tauri commands wire the UI to Ollama, bundled MCPs, the
-first-run bootstrap, Flash-MoE, MicroFish-En, and the awesome-opencode
-plugin registry. Five OpenOptimized-specific settings tabs (`Models`,
-`MCP servers`, `Agent library`, `Plugins`, `Extras`) are mounted and
-reachable. An isolated sidecar (`apps/oo-supervisor`) stands ready to take
-over MCP supervision from the Rust stub.
+Shipped through **Wave 8 — pre-test readiness**. Every item of bundled
+functionality described below is wired end-to-end. Remaining open items are
+tracked in `CHANGELOG.md` (wave history) and `QA-CHECKLIST.md` (manual
+verification against a clean Mac).
 
-Track the staged plan in `/root/.claude/plans/synthetic-napping-lampson.md`
-(local) or inline in this repo's commit history.
+- 7 git submodules under `vendor/` carry the source of every bundled repo
+- 19 Tauri commands wire the Solid.js UI to Ollama, MCPs, plugins, agency-agents, Flash-MoE, MicroFish-En, and a system readiness check
+- 5 OpenOptimized-specific settings tabs (Models, MCP servers, Agent library, Plugins, Extras) are mounted and reachable
+- `apps/oo-supervisor` compiles to a Tauri sidecar; Rust spawns it and forwards `mcp.status` / `mcp.stderr` / `mcp.ready` events to the UI
+- Onboarding overlay runs a three-step flow (system check → Ollama → MCP boot) on first launch, gated on a localStorage flag
+- CI runs `./scripts/smoke.sh --offline` on every push/PR
 
 ## Integration matrix (all ten repos)
 
 | Repo | Role | Delivery |
 |------|------|----------|
-| [cocoindex-code](https://github.com/jaycdave88/cocoindex-code) | AST-aware semantic code search | **Bundled MCP** (`vendor/cocoindex-code` submodule, built from source) |
+| [cocoindex-code](https://github.com/jaycdave88/cocoindex-code) | AST-aware semantic code search | **Bundled MCP** (`vendor/cocoindex-code` submodule, Python venv created on first launch) |
 | [mempalace](https://github.com/jaycdave88/mempalace) | Long-term persistent memory | **Bundled MCP** (`vendor/mempalace` submodule, 19 tools, local-first) |
 | [graphify](https://github.com/jaycdave88/graphify) | Code/doc knowledge graph | **Bundled MCP** (`vendor/graphify` submodule) |
-| [context-mode](https://github.com/jaycdave88/context-mode) | Context window pruning | **Bundled MCP** (`vendor/context-mode` submodule, ELv2, desktop-only) |
-| [agency-agents](https://github.com/jaycdave88/agency-agents) | Pre-built agent personas | **Vendored source** (`vendor/agency-agents`); 200+ personas browsable in Settings → Agent library; seeded subset auto-installed |
-| [deer-flow](https://github.com/jaycdave88/deer-flow) | Multi-agent orchestration | **Vendored source** (`vendor/deer-flow`); first-launch venv from staged `resources/sidecar/deerflow/` |
-| [autoresearch](https://github.com/jaycdave88/autoresearch) | Autonomous research loop | **Vendored source** (`vendor/autoresearch`); first-launch venv from staged `resources/sidecar/autoresearch/`; wrapped by `@oo/research` |
-| [flash-moe](https://github.com/jaycdave88/flash-moe) | 397B MoE native Mac inference | **Optional extra** — installed via Settings → Extras; registered as a second provider in `opencode.defaults.json` (disabled until installed) |
-| [MicroFish-En](https://github.com/jaycdave88/MicroFish-En) | Doc → multi-agent sim (AGPL) | **Optional extra, license-isolated** — user-installed, runs as a detached process, opened in the default browser; see `LICENSES.md` |
-| [awesome-opencode](https://github.com/awesome-opencode/awesome-opencode) | Curated ecosystem directory | **Plugin registry** — shortlist in `resources/opencode-plugins.json`, browsable via Settings → Plugins, installs via OpenCode's plugin system |
-
-## What's in the box
-
-| Layer | Component |
-|-------|-----------|
-| GUI shell | Tauri 2 + React 19 + Solid.js (forked from OpenWork) |
-| Agent runtime | [OpenCode](https://opencode.ai) client/server |
-| Default inference | Local [Ollama](https://ollama.com) — `qwen2.5-coder:14b`, `nomic-embed-text`, `llama3.1:8b`, `deepseek-coder-v2:16b` |
-| Advanced inference | [Flash-MoE](https://github.com/jaycdave88/flash-moe) 397B Qwen MoE (opt-in via Settings → Extras) |
-| Memory | [MemPalace](https://github.com/jaycdave88/mempalace) MCP + optional [awesome-opencode](https://github.com/awesome-opencode/awesome-opencode) plugins (Opencode Mem, Agent Memory) |
-| Code indexing | [CocoIndex](https://github.com/jaycdave88/cocoindex-code) (semantic) + [Graphify](https://github.com/jaycdave88/graphify) (structural) MCPs |
-| Context pruning | [context-mode](https://github.com/jaycdave88/context-mode) MCP (ELv2, desktop-only) + Dynamic Context Pruning plugin |
-| Orchestration | [DeerFlow](https://github.com/jaycdave88/deer-flow) sidecar (Plan mode) + optional Oh My Opencode plugin |
-| Personas | Curated from [agency-agents](https://github.com/jaycdave88/agency-agents) |
-| Research | [autoresearch](https://github.com/jaycdave88/autoresearch) sidecar (Research mode) |
-| Doc simulation (optional) | [MicroFish-En](https://github.com/jaycdave88/MicroFish-En) (AGPL, detached, localhost-only) |
+| [context-mode](https://github.com/jaycdave88/context-mode) | Context window pruning | **Bundled MCP** (`vendor/context-mode` submodule, Node runtime, ELv2 desktop-only) |
+| [agency-agents](https://github.com/jaycdave88/agency-agents) | Pre-built agent personas | **Vendored source** (`vendor/agency-agents`); 187 personas browsable in Settings → Agent library; three-persona seeded subset auto-installed |
+| [deer-flow](https://github.com/jaycdave88/deer-flow) | Multi-agent orchestration | **Vendored source** (`vendor/deer-flow`); first-launch venv from staged `resources/sidecar/deerflow/`; exposed via `Plan` mode |
+| [autoresearch](https://github.com/jaycdave88/autoresearch) | Autonomous research loop | **Vendored source** (`vendor/autoresearch`); first-launch venv from staged `resources/sidecar/autoresearch/`; wrapped by `@oo/research`; exposed via `Research` mode |
+| [flash-moe](https://github.com/jaycdave88/flash-moe) | 397B MoE native Mac inference | **Optional extra** (Settings → Extras → Install); registered as a second provider in `opencode.defaults.json` (disabled until installed). Not vendored — upstream license is TBD |
+| [MicroFish-En](https://github.com/jaycdave88/MicroFish-En) | Doc → multi-agent sim (AGPL) | **Optional extra, license-isolated** — user-installed via Settings → Extras, runs as a detached process, opened in the default browser. Never vendored (would force the MIT bundle to AGPL) |
+| [awesome-opencode](https://github.com/awesome-opencode/awesome-opencode) | Curated ecosystem directory | **Plugin registry** — shortlist in `resources/opencode-plugins.json`, browsable via Settings → Plugins. Install writes to `opencode.json`'s `plugin` array; UI offers a Restart OpenCode button to activate |
 
 ## Layout
 
 ```
 /openOptimized
+  setup.sh                          one-shot Mac Studio bring-up (this is the main entrypoint)
   vendor/                           git submodules — every repo we bundle
-    cocoindex-code/                 MCP (Python)   Wave 4
-    mempalace/                      MCP (Python)   Wave 4
-    graphify/                       MCP (Python)   Wave 4
-    context-mode/                   MCP (Node)     Wave 4
-    deer-flow/                      sidecar        Wave 5
-    autoresearch/                   sidecar        Wave 5
-    agency-agents/                  200+ personas  Wave 5
-  apps/                             forked from openwork (desktop, app, orchestrator, server, ...)
+    cocoindex-code/                 MCP (Python)          Wave 4
+    mempalace/                      MCP (Python)          Wave 4
+    graphify/                       MCP (Python)          Wave 4
+    context-mode/                   MCP (Node)            Wave 4
+    deer-flow/                      sidecar               Wave 5
+    autoresearch/                   sidecar               Wave 5
+    agency-agents/                  187 personas          Wave 5
+  apps/
+    app/                            Solid.js UI (forked from OpenWork, extended)
+    desktop/                        Tauri 2 shell (produces the .app)
+    orchestrator/                   OpenWork host orchestrator (forked, unmodified)
+    server/                         OpenWork API (forked, unmodified)
+    opencode-router/                OpenWork Slack/Telegram bridge (forked, unmodified)
+    oo-supervisor/                  our MCP supervisor sidecar (new)
   packages/
     @openwork/*                     kept from upstream
-    @oo/mcp-supervisor              spawn / health / restart for bundled MCP servers
+    @oo/mcp-supervisor              spawn / health / restart class API
     @oo/ollama-client               Ollama REST client
-    @oo/config                      first-run bootstrap
+    @oo/config                      idempotent first-run bootstrap
     @oo/ui                          OpenOptimized-specific UI primitives
     @oo/research                    autoresearch sidecar wrapper
   resources/
-    mcp-bin/                        prebuilt MCP binaries (fetched, not committed)
-    agents/                         seeded persona files (from agency-agents)
-    deerflow/                       Python sidecar bootstrap target
-    autoresearch/                   Python sidecar bootstrap target
-    flash-moe/                      user-installed MoE inference (opt-in)
-    microfish/                      user-installed AGPL doc-sim (opt-in, isolated)
     opencode.defaults.json          provider + MCP config template
     opencode-plugins.json           awesome-opencode curated shortlist
+    agents/                         3 seeded persona files (repo-navigator, refactor-planner, security-reviewer)
+    agency-agents/                  staged 187-persona catalog (built; gitignored)
+    mcp-bin/<name>/                 staged MCP launchers + venv hooks (built; gitignored)
+    sidecar/<name>/                 staged Python sidecar launchers (built; gitignored)
+    flash-moe/                      user-install scripts for Flash-MoE
+    microfish/                      user-install + launch scripts for MicroFish-En (AGPL-isolated)
   scripts/
-    build-mac.sh                    universal unsigned .app builder
-    fetch-mcp-bins.ts               pin/checksum/download MCP binaries
-    bootstrap-python-sidecars.sh    create isolated Python venvs on demand
-    smoke.sh                        offline-safe integration inventory check
-  UPSTREAM.md                       fork pin + divergence notes
-  LICENSES.md                       third-party inventory
+    build-mac.sh                    universal unsigned .app builder (called by setup.sh)
+    build-mcp-bins.sh               stages MCP source + launchers from vendor/
+    stage-python-sidecars.sh        stages deer-flow + autoresearch from vendor/
+    upstream-diff.sh                reports commits-ahead per vendored repo
+    smoke.sh                        offline-safe structural check (runs in CI)
+    fetch-mcp-bins.ts               deprecated shim → build-mcp-bins.sh
+    bootstrap-python-sidecars.sh    deprecated shim → stage-python-sidecars.sh
+  .github/workflows/oo-smoke.yml    CI: smoke test + drift report on every push/PR
+  README.md  CONTRIBUTING.md  CHANGELOG.md  LICENSES.md
+  UPSTREAM.md  TROUBLESHOOTING.md  QA-CHECKLIST.md
 ```
 
-## Build (developer)
+## Manual build (alternative to `setup.sh`)
+
+If `setup.sh` isn't what you want, the manual path is:
 
 ```bash
-pnpm install
-pnpm fetch:mcp                      # fills resources/mcp-bin (no-op until manifest populated)
-pnpm build:ui
-pnpm build:mac                      # produces OpenOptimized.app (unsigned)
+pnpm install                        # regenerates lockfile if drifted
+pnpm build:mac                      # runs scripts/build-mac.sh end-to-end
+# or, step by step:
+./scripts/build-mcp-bins.sh         # stage MCP sources from vendor/
+./scripts/stage-python-sidecars.sh  # stage DeerFlow + autoresearch from vendor/
+pnpm build:ui                       # compile the Solid.js UI
+pnpm tauri build --target universal-apple-darwin
 ```
 
-First launch: right-click the `.app` → Open. Gatekeeper will warn because the
-build is unsigned; this is expected for v1.
+The resulting `.app` lands at
+`apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/OpenOptimized.app`.
 
 ## Running
 
-1. Install [Ollama](https://ollama.com) (or let the onboarding flow offer
-   `brew install ollama`).
-2. Launch `OpenOptimized.app`. On first run it copies
-   `resources/opencode.defaults.json` into
-   `~/Library/Application Support/OpenOptimized/opencode.json` and seeds
-   persona files into `.opencode/agents/`.
-3. The `ModelManager` panel pulls `qwen2.5-coder:14b` and `nomic-embed-text`
-   on first run (a few GB; backgrounded).
-4. Chat immediately; code search (CocoIndex) and memory (MemPalace) activate
-   as MCP tool calls.
-5. Switch to `Plan (DeerFlow)` or `Research (autoresearch)` via the
-   `ModeSwitcher` when you need heavier workflows; the first switch triggers
-   the Python venv bootstrap.
+1. Launch `OpenOptimized.app`. First run pops the onboarding overlay.
+2. Onboarding runs `oo_system_check` (Python 3.12, Ollama, Node, Git), pre-boots the MCP supervisor, and waits for each of the four bundled MCPs to turn green.
+3. User data lives at `~/Library/Application Support/dev.openoptimized.app/`:
+   - `opencode.json` — user's config (seeded from `resources/opencode.defaults.json`, never overwritten on subsequent launches)
+   - `.opencode/agents/` — seeded personas + any you install from Settings → Agent library
+   - `mcp-bin/<name>/venv/` — per-MCP Python venv, created on first use
+   - `sidecar/<name>/venv/` — per-sidecar Python venv, created on first `Plan` or `Research` mode
+4. Chat immediately against `qwen2.5-coder:14b`. CocoIndex (semantic search) and MemPalace (memory) activate as MCP tool calls.
+5. Switch to `Plan (DeerFlow)` or `Research` via the composer's ModeSwitcher. First switch to a mode triggers its Python venv bootstrap.
+6. Install awesome-opencode plugins via Settings → Plugins; click **Restart OpenCode** in the banner to activate.
+
+Full end-to-end manual test plan lives in `QA-CHECKLIST.md`.
+
+## Docs
+
+- `CONTRIBUTING.md` — clone, build, bump submodule pins, add MCP / settings tab / Tauri command
+- `CHANGELOG.md` — wave-by-wave history (Waves 0 through 8)
+- `UPSTREAM.md` — OpenWork fork point + pinned vendor/ submodules
+- `LICENSES.md` — every bundled component with its license; MIT / Apache / ELv2 boundaries called out
+- `TROUBLESHOOTING.md` — common runtime failures with copy-pasteable fixes
+- `QA-CHECKLIST.md` — manual QA for a clean-Mac pre-release run
 
 ## License
 
