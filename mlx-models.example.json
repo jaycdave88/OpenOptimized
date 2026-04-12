@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openoptimized.dev/schemas/mlx-models.json",
+  "$comment": "Copy this to ./mlx-models.json (gitignored) and edit paths + IDs for your machine. Each entry becomes a separate OpenAI-compatible provider in the user's opencode.json (provider id: mlx-<id>). `scripts/start-mlx.sh` spawns one `mlx_lm.server` process per entry; `scripts/stop-mlx.sh` stops them by PID file.",
+  "host": "127.0.0.1",
+  "models": [
+    {
+      "id": "r1-uncensored",
+      "path": "/Users/momo/models/r1-uncensored",
+      "port": 8083,
+      "label": "R1 Uncensored (MLX)",
+      "tools": true,
+      "reasoning": true
+    },
+    {
+      "id": "qwen-coder-uncensored",
+      "path": "/Users/momo/models/qwen-coder-uncensored",
+      "port": 8082,
+      "label": "Qwen Coder Uncensored (MLX)",
+      "tools": true,
+      "reasoning": false
+    }
+  ]
+}

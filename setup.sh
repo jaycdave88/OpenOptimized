@@ -24,6 +24,10 @@
 #   --skip-build        stop after deps, don't run build-mac.sh
 #   --skip-launch       build but don't auto-open the .app
 #   --with-python       force Python install even if python3 is present
+#   --with-mlx          start MLX models defined in ./mlx-models.json and
+#                       register them as OpenCode providers
+#   --mlx-config PATH   path to an alternate MLX config (implies --with-mlx)
+#   --skip-mlx          do not start or register MLX models even if a config exists
 #   --yes               don't prompt for anything (for CI / automation)
 #
 # Run from the repo root:
@@ -41,21 +45,27 @@ SKIP_OLLAMA=0
 SKIP_MODELS=0
 SKIP_BUILD=0
 SKIP_LAUNCH=0
+SKIP_MLX=0
+WITH_MLX=0
 FORCE_PYTHON=0
 ASSUME_YES=0
-for arg in "$@"; do
-  case "$arg" in
-    --skip-ollama) SKIP_OLLAMA=1 ;;
-    --skip-models) SKIP_MODELS=1 ;;
-    --skip-build)  SKIP_BUILD=1 ;;
-    --skip-launch) SKIP_LAUNCH=1 ;;
-    --with-python) FORCE_PYTHON=1 ;;
-    --yes|-y)      ASSUME_YES=1 ;;
+MLX_CONFIG=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-ollama) SKIP_OLLAMA=1; shift ;;
+    --skip-models) SKIP_MODELS=1; shift ;;
+    --skip-build)  SKIP_BUILD=1; shift ;;
+    --skip-launch) SKIP_LAUNCH=1; shift ;;
+    --skip-mlx)    SKIP_MLX=1; shift ;;
+    --with-python) FORCE_PYTHON=1; shift ;;
+    --with-mlx)    WITH_MLX=1; shift ;;
+    --mlx-config)  WITH_MLX=1; MLX_CONFIG="${2:?--mlx-config needs a path}"; shift 2 ;;
+    --yes|-y)      ASSUME_YES=1; shift ;;
     -h|--help)
-      sed -n '2,35p' "$0"
+      sed -n '2,38p' "$0"
       exit 0
       ;;
-    *) echo "unknown flag: $arg" >&2; exit 2 ;;
+    *) echo "unknown flag: $1" >&2; exit 2 ;;
   esac
 done
 
@@ -239,6 +249,62 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 6b. Local MLX models (optional; only if config present or --with-mlx)
+# ---------------------------------------------------------------------------
+
+MLX_CONFIG_RESOLVED=""
+if [[ -n "${MLX_CONFIG}" ]]; then
+  MLX_CONFIG_RESOLVED="${MLX_CONFIG}"
+elif [[ -f "${ROOT}/mlx-models.json" ]]; then
+  MLX_CONFIG_RESOLVED="${ROOT}/mlx-models.json"
+fi
+
+if [[ "${SKIP_MLX}" == "1" ]]; then
+  skip "MLX models (--skip-mlx)"
+elif [[ -n "${MLX_CONFIG_RESOLVED}" || "${WITH_MLX}" == "1" ]]; then
+  step "Local MLX models"
+  if [[ -z "${MLX_CONFIG_RESOLVED}" ]]; then
+    warn "--with-mlx given but no ./mlx-models.json found"
+    info "copy the template: cp mlx-models.example.json mlx-models.json, then re-run"
+  else
+    info "config: ${MLX_CONFIG_RESOLVED}"
+
+    # Make sure mlx_lm is available. Don't force pip install; just tell the
+    # user what to do if it's missing.
+    if ! command -v mlx_lm.server >/dev/null; then
+      if confirm "mlx_lm.server not found. Install mlx-lm via pip?"; then
+        pip3 install --quiet --upgrade pip
+        pip3 install --quiet mlx-lm 2>&1 | tee -a "${LOG}" >/dev/null
+        ok "mlx-lm installed"
+      else
+        skip "MLX servers (mlx-lm missing)"
+        MLX_CONFIG_RESOLVED=""
+      fi
+    fi
+
+    # jq is required by both scripts; it's tiny and universally useful.
+    if ! command -v jq >/dev/null; then
+      info "installing jq (required by start-mlx / register-mlx scripts)"
+      brew install jq 2>&1 | tee -a "${LOG}" >/dev/null
+    fi
+
+    if [[ -n "${MLX_CONFIG_RESOLVED}" ]]; then
+      info "starting mlx_lm.server processes"
+      if "./scripts/start-mlx.sh" "${MLX_CONFIG_RESOLVED}" 2>&1 | tee -a "${LOG}"; then
+        ok "MLX servers healthy"
+        info "registering MLX providers in opencode.json"
+        "./scripts/register-mlx-providers.sh" "${MLX_CONFIG_RESOLVED}" 2>&1 | tee -a "${LOG}"
+        ok "MLX providers registered"
+      else
+        warn "one or more MLX servers failed to start; see setup.log"
+      fi
+    fi
+  fi
+else
+  skip "MLX models (no ./mlx-models.json and --with-mlx not set)"
+fi
+
+# ---------------------------------------------------------------------------
 # 7. Submodules
 # ---------------------------------------------------------------------------
 
@@ -300,3 +366,7 @@ info "smoke test:    ./scripts/smoke.sh --offline"
 info "drift audit:   ./scripts/upstream-diff.sh"
 info "troubleshoot:  TROUBLESHOOTING.md"
 info "QA checklist:  QA-CHECKLIST.md"
+if [[ -n "${MLX_CONFIG_RESOLVED:-}" ]]; then
+  info "stop MLX:      ./scripts/stop-mlx.sh"
+  info "start MLX:     ./scripts/start-mlx.sh ${MLX_CONFIG_RESOLVED}"
+fi

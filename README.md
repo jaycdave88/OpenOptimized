@@ -99,10 +99,14 @@ verification against a clean Mac).
     build-mac.sh                    universal unsigned .app builder (called by setup.sh)
     build-mcp-bins.sh               stages MCP source + launchers from vendor/
     stage-python-sidecars.sh        stages deer-flow + autoresearch from vendor/
+    start-mlx.sh                    spawn mlx_lm.server per model in mlx-models.json
+    stop-mlx.sh                     stop MLX servers by PID file
+    register-mlx-providers.sh       merge MLX entries into user's opencode.json
     upstream-diff.sh                reports commits-ahead per vendored repo
     smoke.sh                        offline-safe structural check (runs in CI)
     fetch-mcp-bins.ts               deprecated shim → build-mcp-bins.sh
     bootstrap-python-sidecars.sh    deprecated shim → stage-python-sidecars.sh
+  mlx-models.example.json           template for local MLX model config (copy to mlx-models.json)
   .github/workflows/oo-smoke.yml    CI: smoke test + drift report on every push/PR
   README.md  CONTRIBUTING.md  CHANGELOG.md  LICENSES.md
   UPSTREAM.md  TROUBLESHOOTING.md  QA-CHECKLIST.md
@@ -124,6 +128,47 @@ pnpm tauri build --target universal-apple-darwin
 
 The resulting `.app` lands at
 `apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/OpenOptimized.app`.
+
+## Local MLX models (optional)
+
+If you already run models via [`mlx_lm.server`](https://github.com/ml-explore/mlx-examples/tree/main/llms/mlx_lm), OpenOptimized can drive them directly as OpenAI-compatible providers alongside Ollama.
+
+1. Copy the template and edit paths + ports to match your machine:
+
+   ```bash
+   cp mlx-models.example.json mlx-models.json
+   $EDITOR mlx-models.json
+   ```
+
+   Example (the template ships this exact setup):
+
+   ```json
+   {
+     "host": "127.0.0.1",
+     "models": [
+       { "id": "r1-uncensored", "path": "/Users/momo/models/r1-uncensored", "port": 8083, "label": "R1 Uncensored (MLX)", "tools": true, "reasoning": true },
+       { "id": "qwen-coder-uncensored", "path": "/Users/momo/models/qwen-coder-uncensored", "port": 8082, "label": "Qwen Coder Uncensored (MLX)", "tools": true }
+     ]
+   }
+   ```
+
+2. Start the servers and register them as providers:
+
+   ```bash
+   ./scripts/start-mlx.sh                      # spawns mlx_lm.server per model
+   ./scripts/register-mlx-providers.sh         # merges mlx-<id> entries into opencode.json
+   ```
+
+   Or let `setup.sh` handle both during the initial run — it detects
+   `./mlx-models.json` automatically, or you can pass `--mlx-config` / `--with-mlx`.
+
+3. Stop them later:
+
+   ```bash
+   ./scripts/stop-mlx.sh
+   ```
+
+PID files and per-model logs live under `~/Library/Application Support/dev.openoptimized.app/mlx/`. The merge into `opencode.json` is idempotent — re-running `register-mlx-providers.sh` overwrites the `mlx-<id>` block and leaves every other key alone. Each model becomes its own provider (one per port) so the ModelManager picker shows them separately from Ollama.
 
 ## Running
 

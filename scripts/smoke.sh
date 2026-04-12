@@ -73,8 +73,30 @@ echo "==> agency-agents catalog reachable"
 count=$(find "${ROOT}/vendor/agency-agents" -name "*.md" -not -path "*/.git/*" -not -name "README.md" 2>/dev/null | wc -l | tr -d ' ')
 if [[ "${count}" -gt 100 ]]; then pass "vendor/agency-agents personas: ${count}"; else fail "agency-agents too small (got ${count})"; fi
 
+echo "==> MLX scripts + example config"
+if command -v jq >/dev/null; then
+  # Dry-run register-mlx-providers against the committed example into a
+  # throwaway dir; confirms the jq merge produces valid JSON and the
+  # expected provider shape.
+  tmpdir="$(mktemp -d)"
+  if OO_USER_DATA_DIR="${tmpdir}" bash "${ROOT}/scripts/register-mlx-providers.sh" "${ROOT}/mlx-models.example.json" >/dev/null 2>&1; then
+    # Verify at least one mlx-* provider landed with a valid baseURL.
+    keys=$(jq -r '.provider | keys | map(select(startswith("mlx-"))) | length' "${tmpdir}/opencode.json" 2>/dev/null || echo 0)
+    if [[ "${keys}" -ge 2 ]]; then
+      pass "register-mlx-providers.sh (wrote ${keys} mlx-* providers from example)"
+    else
+      fail "register-mlx-providers.sh wrote ${keys} providers (expected >= 2)"
+    fi
+  else
+    fail "register-mlx-providers.sh failed against example config"
+  fi
+  rm -rf "${tmpdir}"
+else
+  skip "MLX register dry-run (jq not installed)"
+fi
+
 echo "==> Critical files"
-for f in LICENSE LICENSES.md UPSTREAM.md README.md CONTRIBUTING.md CHANGELOG.md TROUBLESHOOTING.md QA-CHECKLIST.md resources/opencode.defaults.json resources/opencode-plugins.json resources/flash-moe/install.sh resources/microfish/install.sh resources/microfish/launch.sh scripts/build-mac.sh scripts/build-mcp-bins.sh scripts/stage-python-sidecars.sh scripts/upstream-diff.sh scripts/fetch-mcp-bins.ts scripts/bootstrap-python-sidecars.sh .github/workflows/oo-smoke.yml apps/desktop/src-tauri/src/commands/ollama.rs apps/desktop/src-tauri/src/commands/oo_mcp.rs apps/desktop/src-tauri/src/commands/oo_bootstrap.rs apps/desktop/src-tauri/src/commands/oo_extras.rs apps/desktop/src-tauri/src/commands/oo_system.rs apps/oo-supervisor/script/build.ts; do
+for f in LICENSE LICENSES.md UPSTREAM.md README.md CONTRIBUTING.md CHANGELOG.md TROUBLESHOOTING.md QA-CHECKLIST.md mlx-models.example.json resources/opencode.defaults.json resources/opencode-plugins.json resources/flash-moe/install.sh resources/microfish/install.sh resources/microfish/launch.sh setup.sh scripts/build-mac.sh scripts/build-mcp-bins.sh scripts/stage-python-sidecars.sh scripts/start-mlx.sh scripts/stop-mlx.sh scripts/register-mlx-providers.sh scripts/upstream-diff.sh scripts/fetch-mcp-bins.ts scripts/bootstrap-python-sidecars.sh .github/workflows/oo-smoke.yml apps/desktop/src-tauri/src/commands/ollama.rs apps/desktop/src-tauri/src/commands/oo_mcp.rs apps/desktop/src-tauri/src/commands/oo_bootstrap.rs apps/desktop/src-tauri/src/commands/oo_extras.rs apps/desktop/src-tauri/src/commands/oo_system.rs apps/oo-supervisor/script/build.ts; do
   if [[ -f "${ROOT}/${f}" ]]; then pass "${f}"; else fail "missing ${f}"; fi
 done
 

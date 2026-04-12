@@ -113,6 +113,70 @@ cat ~/Library/Application\ Support/dev.openoptimized.app/opencode.json | jq .plu
 Confirm the plugin appears in the array. If so, restart OpenCode via the
 engine-restart command or relaunch the app.
 
+## Local MLX models
+
+### `mlx_lm.server: command not found`
+
+```bash
+pip3 install --upgrade mlx-lm
+# or, in a venv / with pipx:
+pipx install mlx-lm
+```
+
+On Apple Silicon with Python 3.12 installed by `setup.sh`, `pip3 install mlx-lm`
+should work without further dance.
+
+### `start-mlx.sh`: "path does not exist"
+
+The `path` field in `mlx-models.json` must point at a directory containing
+a weights-and-tokenizer MLX model. If you haven't downloaded one yet:
+
+```bash
+# example: pull a weight dir from Hugging Face
+huggingface-cli download mlx-community/Qwen2.5-Coder-32B-Instruct-4bit \
+  --local-dir ~/models/qwen-coder-4bit
+```
+
+Then update `mlx-models.json` so the `path` points at `~/models/qwen-coder-4bit`.
+
+### An MLX server is running but the ModelManager doesn't show it
+
+The model only appears after `register-mlx-providers.sh` has written the
+provider block to `opencode.json`. Inspect:
+
+```bash
+jq '.provider | keys' \
+  ~/Library/Application\ Support/dev.openoptimized.app/opencode.json
+```
+
+Expect to see `mlx-<your-id>` entries alongside `ollama`. If absent, rerun:
+
+```bash
+./scripts/register-mlx-providers.sh
+```
+
+Then restart OpenCode (Settings → Plugins banner **Restart OpenCode**, or
+relaunch the app) so it re-reads the provider list.
+
+### Stopping MLX servers
+
+```bash
+./scripts/stop-mlx.sh
+```
+
+Reads PID files under `~/Library/Application Support/dev.openoptimized.app/mlx/`.
+Safe to run when nothing is running.
+
+### Port already in use
+
+If `lsof -i :8082` shows a stray process from a previous run, kill it by PID,
+then delete the stale marker:
+
+```bash
+rm ~/Library/Application\ Support/dev.openoptimized.app/mlx/<id>.pid
+./scripts/start-mlx.sh
+```
+
 ## Extras (Flash-MoE / MicroFish-En)
 
 ### Flash-MoE install fails with "git not installed"

@@ -24,6 +24,15 @@ resources/mcp-bin/*/
 resources/sidecar/
 resources/agency-agents/
 
+# Local MLX model config (machine-specific paths); copy from
+# mlx-models.example.json. MLX server PIDs/logs live under $APPSUPPORT,
+# not here, but a local ./mlx-state/ dir is sometimes used for testing.
+mlx-models.json
+mlx-state/
+
+# setup.sh output
+setup.log
+
 # Local git worktrees
 _worktrees/
 

@@ -5,6 +5,37 @@ shipped on `main`; `claude/review-projects-Yh6gW` was the feature branch
 during development and was merged into `main` as the new default branch
 after Wave 8.
 
+## Wave 10 — Local MLX model support
+
+- `mlx-models.example.json` at repo root — template showing the exact
+  `{id, path, port, label, tools, reasoning}` shape, seeded with the
+  r1-uncensored and qwen-coder-uncensored setup as example entries.
+  Users copy to `./mlx-models.json` (gitignored) and point at their
+  own weight directories.
+- `scripts/start-mlx.sh` — reads the config, spawns one `mlx_lm.server`
+  process per model, records PIDs at
+  `$APPSUPPORT/dev.openoptimized.app/mlx/<id>.pid`, tees logs to
+  `<id>.log`, and health-checks each server's `/v1/models` endpoint
+  before moving on. Skips already-running models based on existing PID
+  files.
+- `scripts/stop-mlx.sh` — SIGTERM → 3 s grace → SIGKILL → clean up PID
+  files. Safe on cold start.
+- `scripts/register-mlx-providers.sh` — jq-based idempotent merge into
+  `$APPSUPPORT/dev.openoptimized.app/opencode.json`. Each MLX model
+  becomes its own `@ai-sdk/openai-compatible` provider (`mlx-<id>`)
+  pointing at `http://host:port/v1`. Re-running overwrites the MLX blocks
+  and leaves every other key untouched.
+- `setup.sh` gains `--with-mlx`, `--mlx-config PATH`, and `--skip-mlx`
+  flags. Auto-detects `./mlx-models.json` and runs start + register
+  inline. pip-installs `mlx-lm` if missing (with prompt), brew-installs
+  `jq` if missing.
+- `.gitignore`: `mlx-models.json`, `mlx-state/`, `setup.log`.
+- README: new "Local MLX models (optional)" section with the full
+  copy-paste-and-run flow. Layout shows the three new scripts.
+- TROUBLESHOOTING: MLX section with the common failure modes (mlx_lm
+  missing, path doesn't exist, provider not showing, stale PID, port
+  conflict).
+
 ## Wave 9 — Main branch + Mac Studio installer
 
 - `claude/review-projects-Yh6gW` merged into `main`; `main` set as the
