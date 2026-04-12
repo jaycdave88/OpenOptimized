@@ -1,0 +1,57 @@
+.turbo/
+node_modules/
+packages/*/node_modules/
+packages/@oo/*/node_modules/
+apps/*/node_modules/
+.next/
+out/
+dist/
+packages/*/dist/
+packages/@oo/*/dist/
+apps/*/dist/
+tmp/
+
+# OpenOptimized-specific: bundled MCP binaries are fetched, not committed
+resources/mcp-bin/arm64/
+resources/mcp-bin/x86_64/
+resources/mcp-bin/manifest.json
+
+# Local git worktrees
+_worktrees/
+
+# Tauri/Rust
+packages/desktop/src-tauri/target/
+packages/desktop/src-tauri/sidecars/
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/sidecars/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Bun build artifacts
+*.bun-build
+apps/server/cli
+
+# pnpm store (created by Docker volume mounts)
+.pnpm-store/
+
+# Docker dev workspace (ephemeral mount point)
+packaging/docker/workspace/
+
+# OS
+.DS_Store
+
+# OpenCode mirror
+vendor/opencode/
+
+# OpenCode local deps
+.opencode/node_modules/
+.opencode/bun.lock
+
+# OpenWork workspace-local artifacts
+.opencode/openwork/
+.vercel
+.env*.local
+.claude/*

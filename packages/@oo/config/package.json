@@ -1,0 +1,16 @@
+{
+  "name": "@oo/config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "First-run bootstrap of opencode.json, agents, and MCP server configs from bundled defaults.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.3"
+  }
+}

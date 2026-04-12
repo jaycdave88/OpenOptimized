@@ -1,0 +1,16 @@
+{
+  "name": "@oo/ollama-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ollama detection, model listing, and model pull with progress streaming.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.3"
+  }
+}

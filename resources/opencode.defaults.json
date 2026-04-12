@@ -1,0 +1,69 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "$comment": "Default OpenCode configuration copied to $APPSUPPORT/OpenOptimized/opencode.json on first run by @oo/config. User edits are preserved. Paths marked with __RESOURCE__ are rewritten to absolute paths at bootstrap time.",
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1"
+      },
+      "models": {
+        "qwen2.5-coder:14b": {
+          "name": "Qwen2.5 Coder 14B",
+          "tools": true,
+          "reasoning": false,
+          "attachment": false
+        },
+        "qwen2.5-coder:7b": {
+          "name": "Qwen2.5 Coder 7B",
+          "tools": true,
+          "reasoning": false,
+          "attachment": false
+        },
+        "llama3.1:8b": {
+          "name": "Llama 3.1 8B",
+          "tools": true,
+          "reasoning": false,
+          "attachment": false
+        },
+        "deepseek-coder-v2:16b": {
+          "name": "DeepSeek Coder V2 16B",
+          "tools": true,
+          "reasoning": false,
+          "attachment": false
+        },
+        "nomic-embed-text": {
+          "name": "Nomic Embed Text (embeddings)",
+          "tools": false,
+          "reasoning": false,
+          "attachment": false
+        }
+      }
+    }
+  },
+  "model": "ollama/qwen2.5-coder:14b",
+  "small_model": "ollama/qwen2.5-coder:7b",
+  "mcp": {
+    "cocoindex": {
+      "type": "local",
+      "command": ["__RESOURCE__/mcp-bin/cocoindex"],
+      "enabled": true
+    },
+    "mempalace": {
+      "type": "local",
+      "command": ["__RESOURCE__/mcp-bin/mempalace"],
+      "enabled": true
+    },
+    "graphify": {
+      "type": "local",
+      "command": ["__RESOURCE__/mcp-bin/graphify"],
+      "enabled": true
+    },
+    "context-mode": {
+      "type": "local",
+      "command": ["__RESOURCE__/mcp-bin/context-mode"],
+      "enabled": true
+    }
+  }
+}

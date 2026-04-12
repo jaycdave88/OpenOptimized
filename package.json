@@ -1,0 +1,42 @@
+{
+  "name": "@openoptimized/workspace",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "OPENWORK_DEV_MODE=1 pnpm --filter @openwork/desktop dev",
+    "dev:ui": "OPENWORK_DEV_MODE=1 pnpm --filter @openwork/app dev",
+    "dev:ui-demo": "pnpm --filter @openwork/ui-demo dev",
+    "dev:story": "OPENWORK_DEV_MODE=1 pnpm --filter @openwork/story-book dev",
+    "build": "node scripts/build.mjs",
+    "build:ui": "pnpm --filter @openwork/app build",
+    "build:mac": "bash scripts/build-mac.sh",
+    "preview": "pnpm --filter @openwork/app preview",
+    "typecheck": "pnpm --filter @openwork/app typecheck",
+    "test:health": "pnpm --filter @openwork/app test:health",
+    "test:sessions": "pnpm --filter @openwork/app test:sessions",
+    "test:e2e": "pnpm --filter @openwork/app test:e2e",
+    "test:orchestrator": "pnpm --filter openwork-orchestrator test:router",
+    "bump:patch": "pnpm --filter @openwork/app bump:patch",
+    "bump:minor": "pnpm --filter @openwork/app bump:minor",
+    "bump:major": "pnpm --filter @openwork/app bump:major",
+    "tauri": "pnpm --filter @openwork/desktop exec tauri",
+    "fetch:mcp": "tsx scripts/fetch-mcp-bins.ts",
+    "bootstrap:python": "bash scripts/bootstrap-python-sidecars.sh"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.5",
+    "tsx": "^4.19.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@whiskeysockets/baileys",
+      "better-sqlite3",
+      "esbuild",
+      "protobufjs"
+    ],
+    "patchedDependencies": {
+      "@solidjs/router@0.15.4": "patches/@solidjs__router@0.15.4.patch"
+    }
+  },
+  "packageManager": "pnpm@10.27.0"
+}
