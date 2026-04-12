@@ -65,31 +65,55 @@ fn user_data_dir(app: &AppHandle) -> Option<PathBuf> {
         .ok()
 }
 
-/// Locate the bundled oo-supervisor binary. In prod it's under
-/// `<AppBundle>/Contents/MacOS/oo-supervisor` (via Tauri's externalBin
-/// placement). In dev we fall back to the compiled output under
-/// `apps/oo-supervisor/dist/bin/`.
+/// Locate the bundled oo-supervisor binary. Tauri's externalBin places
+/// sidecars next to the main binary at `<AppBundle>/Contents/MacOS/`,
+/// not in `Contents/Resources/`. Depending on the Tauri version the
+/// file may keep its target-triple suffix (`oo-supervisor-aarch64-apple-darwin`)
+/// or be renamed to just `oo-supervisor`. We check both, plus the dev
+/// build output under `apps/oo-supervisor/dist/bin/`.
 fn resolve_supervisor_bin(app: &AppHandle) -> Option<PathBuf> {
+    // 1. Next to the running binary (Tauri externalBin placement in prod).
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for name in [
+                "oo-supervisor",
+                "oo-supervisor-aarch64-apple-darwin",
+                "oo-supervisor-x86_64-apple-darwin",
+            ] {
+                let candidate = dir.join(name);
+                if candidate.exists() {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
+
+    // 2. Legacy resource_dir check (older Tauri versions, or if someone
+    //    manually copied it into Resources).
     if let Ok(resource_dir) = app.path().resource_dir() {
         for candidate in [
             resource_dir.join("oo-supervisor"),
             resource_dir.join("sidecars").join("oo-supervisor"),
+            resource_dir.join("sidecars").join("oo-supervisor-aarch64-apple-darwin"),
         ] {
             if candidate.exists() {
                 return Some(candidate);
             }
         }
     }
+
+    // 3. Dev fallback: repo tree.
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let repo_root = manifest.parent()?.parent()?.parent()?;
-    let dev = repo_root
-        .join("apps")
-        .join("oo-supervisor")
-        .join("dist")
-        .join("bin")
-        .join("oo-supervisor");
-    if dev.exists() {
-        return Some(dev);
+    for rel in [
+        "apps/oo-supervisor/dist/bin/oo-supervisor",
+        "apps/desktop/src-tauri/sidecars/oo-supervisor-aarch64-apple-darwin",
+        "apps/desktop/src-tauri/sidecars/oo-supervisor",
+    ] {
+        let dev = repo_root.join(rel);
+        if dev.exists() {
+            return Some(dev);
+        }
     }
     None
 }
@@ -100,17 +124,44 @@ fn spawn_supervisor(app: &AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    let bin = resolve_supervisor_bin(app)
-        .ok_or_else(|| "oo-supervisor binary not found; run scripts/build-mac.sh".to_string())?;
+    let bin = match resolve_supervisor_bin(app) {
+        Some(p) => p,
+        None => {
+            let err = "oo-supervisor binary not found; expected in Contents/MacOS/ of the .app bundle".to_string();
+            let _ = app.emit(
+                "mcp.supervisor.error",
+                serde_json::json!({ "stage": "resolve", "error": err }),
+            );
+            return Err(err);
+        }
+    };
+
+    // Surface the resolved path so the UI can show progress even before
+    // the first mcp.status event.
+    let _ = app.emit(
+        "mcp.supervisor.spawning",
+        serde_json::json!({ "bin": bin.display().to_string() }),
+    );
+
     let data_dir = user_data_dir(app).ok_or_else(|| "app data dir unavailable".to_string())?;
 
-    let mut child = Command::new(&bin)
+    let mut child = match Command::new(&bin)
         .env("OO_USER_DATA_DIR", &data_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("spawn {} failed: {e}", bin.display()))?;
+    {
+        Ok(c) => c,
+        Err(e) => {
+            let err = format!("spawn {} failed: {e}", bin.display());
+            let _ = app.emit(
+                "mcp.supervisor.error",
+                serde_json::json!({ "stage": "spawn", "error": err }),
+            );
+            return Err(err);
+        }
+    };
 
     let stdout = child.stdout.take().ok_or("no stdout")?;
     let stderr = child.stderr.take().ok_or("no stderr")?;

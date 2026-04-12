@@ -50,8 +50,10 @@ export default function Setup(props: { onDone: () => void }) {
   const [report, setReport] = createSignal<SystemReport | null>(null);
   const [mcpUp, setMcpUp] = createSignal(new Set<string>());
   const [mcpTotal, setMcpTotal] = createSignal(0);
+  const [mcpError, setMcpError] = createSignal<string | null>(null);
+  const [supervisorBin, setSupervisorBin] = createSignal<string | null>(null);
 
-  let unlistenMcp: UnlistenFn | undefined;
+  const unlisteners: UnlistenFn[] = [];
 
   onMount(async () => {
     const r = await invoke<SystemReport>("oo_system_check").catch(() => null);
@@ -59,20 +61,42 @@ export default function Setup(props: { onDone: () => void }) {
     if (r?.ollama_running) {
       setStep("ollama");
     }
-    // Listen for mcp.status events so step 3 can show live progress even
-    // if the user arrives at it via the Continue button rather than auto.
-    unlistenMcp = await listen<McpStateSnapshot>("mcp.status", (e) => {
-      if (e.payload.status === "up") {
-        setMcpUp((prev) => {
-          const next = new Set(prev);
-          next.add(e.payload.id);
-          return next;
-        });
-      }
-    });
+    // Listen for mcp.status events so step 3 can show live progress.
+    unlisteners.push(
+      await listen<McpStateSnapshot>("mcp.status", (e) => {
+        if (e.payload.status === "up") {
+          setMcpUp((prev) => {
+            const next = new Set(prev);
+            next.add(e.payload.id);
+            return next;
+          });
+        }
+      }),
+    );
+    // Supervisor diagnostics so spin-forever is visible as a real error.
+    unlisteners.push(
+      await listen<{ bin: string }>("mcp.supervisor.spawning", (e) => {
+        setSupervisorBin(e.payload.bin);
+      }),
+    );
+    unlisteners.push(
+      await listen<{ stage: string; error: string }>("mcp.supervisor.error", (e) => {
+        setMcpError(`${e.payload.stage}: ${e.payload.error}`);
+      }),
+    );
+    unlisteners.push(
+      await listen<{ line: string }>("mcp.supervisor.stderr", (e) => {
+        // Tack on up to a few lines so the user sees supervisor startup failures.
+        setMcpError((prev) =>
+          (prev ? prev + "\n" : "supervisor stderr: ") + e.payload.line,
+        );
+      }),
+    );
   });
 
-  onCleanup(() => unlistenMcp?.());
+  onCleanup(() => {
+    for (const u of unlisteners) u();
+  });
 
   const proceedOllama = () => {
     if (report()?.ollama_running) setStep("mcp");
@@ -216,6 +240,19 @@ export default function Setup(props: { onDone: () => void }) {
             )}
           </For>
         </ul>
+        <Show when={supervisorBin()}>
+          <p class="text-[11px] text-dls-secondary">
+            supervisor: <code>{supervisorBin()}</code>
+          </p>
+        </Show>
+        <Show when={mcpError()}>
+          <div class="rounded-md border border-red-7/30 bg-red-7/10 p-2">
+            <p class="text-xs font-semibold text-red-11">MCP supervisor error</p>
+            <pre class="mt-1 whitespace-pre-wrap text-[11px] text-red-11">
+              {mcpError()}
+            </pre>
+          </div>
+        </Show>
         <p class="text-[11px] text-dls-secondary">
           You can close this dialog at any time; setup continues in the
           background. Progress is also visible under Settings → MCP servers.
