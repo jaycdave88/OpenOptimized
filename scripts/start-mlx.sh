@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash
+# Needs bash 4+ for `mapfile`. macOS ships bash 3.2.
+if [[ "${BASH_VERSINFO:-0}" -lt 4 ]]; then
+  for candidate in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    if [[ -x "$candidate" ]]; then
+      exec "$candidate" "$0" "$@"
+    fi
+  done
+  echo "error: this script needs bash 4+. Install via: brew install bash" >&2
+  echo "       currently running: ${BASH_VERSION:-unknown}" >&2
+  exit 1
+fi
 #
 # start-mlx.sh — spawn one `mlx_lm.server` per model listed in the config.
 #
@@ -26,7 +38,10 @@ ROOT="$(pwd)"
 CONFIG="${1:-${ROOT}/mlx-models.json}"
 USER_DATA_DIR="${OO_USER_DATA_DIR:-${HOME}/Library/Application Support/dev.openoptimized.app}"
 MLX_DIR="${USER_DATA_DIR}/mlx"
-HEALTH_TIMEOUT="${OO_MLX_HEALTH_TIMEOUT:-30}"
+# Default 120s; large MLX models (R1-class) can easily take > 30s to bind
+# on a cold launch. Override per-invocation with OO_MLX_HEALTH_TIMEOUT=<seconds>
+# or per-model by setting `timeout_s` in mlx-models.json.
+HEALTH_TIMEOUT_DEFAULT="${OO_MLX_HEALTH_TIMEOUT:-120}"
 
 if [[ ! -f "${CONFIG}" ]]; then
   cat >&2 <<EOF
@@ -64,24 +79,41 @@ fi
 echo "[start-mlx] spawning ${COUNT} mlx_lm.server process(es) on ${HOST}"
 
 wait_healthy() {
-  local url="$1" model_id="$2"
-  local deadline=$(( $(date +%s) + HEALTH_TIMEOUT ))
+  local url="$1" model_id="$2" timeout="$3"
+  local deadline=$(( $(date +%s) + timeout ))
   while (( $(date +%s) < deadline )); do
     if curl -sS --max-time 2 "${url}/v1/models" >/dev/null 2>&1; then
       return 0
     fi
+    # Fail fast if the server process exited already (saves waiting out
+    # the full timeout when the model path is wrong / mlx crashed).
+    if [[ -f "${MLX_DIR}/${model_id}.pid" ]]; then
+      local spid
+      spid="$(cat "${MLX_DIR}/${model_id}.pid" 2>/dev/null || true)"
+      if [[ -n "${spid}" ]] && ! kill -0 "${spid}" 2>/dev/null; then
+        echo "!! ${model_id}: mlx_lm.server exited before binding; see ${MLX_DIR}/${model_id}.log" >&2
+        return 1
+      fi
+    fi
     sleep 1
   done
-  echo "!! ${model_id}: no response from ${url}/v1/models within ${HEALTH_TIMEOUT}s" >&2
+  echo "!! ${model_id}: no response from ${url}/v1/models within ${timeout}s (last 10 log lines below)" >&2
+  tail -n 10 "${MLX_DIR}/${model_id}.log" 2>/dev/null | sed 's/^/    /' >&2 || true
   return 1
 }
 
+# NOTE: read the jq output into an array first so the while-loop runs in
+# the parent shell (a `jq | while` pipeline runs the while in a subshell,
+# which silently discards any variable writes — including our fail counter).
+mapfile -t _rows < <(jq -r '.models[] | [.id, .path, .port, (.timeout_s // "")] | @tsv' "${CONFIG}")
+
 fail=0
-# shellcheck disable=SC2016
-jq -r '.models[] | [.id, .path, .port] | @tsv' "${CONFIG}" | while IFS=$'\t' read -r id path port; do
+for row in "${_rows[@]}"; do
+  IFS=$'\t' read -r id path port row_timeout <<< "$row"
   pid_file="${MLX_DIR}/${id}.pid"
   log_file="${MLX_DIR}/${id}.log"
   url="http://${HOST}:${port}"
+  timeout="${row_timeout:-${HEALTH_TIMEOUT_DEFAULT}}"
 
   if [[ -f "${pid_file}" ]] && kill -0 "$(cat "${pid_file}")" 2>/dev/null; then
     echo "  ${id}: already running (pid $(cat "${pid_file}"))"
@@ -94,7 +126,7 @@ jq -r '.models[] | [.id, .path, .port] | @tsv' "${CONFIG}" | while IFS=$'\t' rea
     continue
   fi
 
-  echo "  ${id}: starting on ${url} (model: ${path})"
+  echo "  ${id}: starting on ${url} (model: ${path}; health timeout ${timeout}s)"
   nohup mlx_lm.server \
     --model "${path}" \
     --host "${HOST}" \
@@ -102,7 +134,7 @@ jq -r '.models[] | [.id, .path, .port] | @tsv' "${CONFIG}" | while IFS=$'\t' rea
     >"${log_file}" 2>&1 &
   echo $! > "${pid_file}"
 
-  if wait_healthy "${url}" "${id}"; then
+  if wait_healthy "${url}" "${id}" "${timeout}"; then
     echo "  ${id}: ok (pid $(cat "${pid_file}"))"
   else
     echo "  ${id}: !! failed health check; see ${log_file}" >&2
@@ -110,7 +142,8 @@ jq -r '.models[] | [.id, .path, .port] | @tsv' "${CONFIG}" | while IFS=$'\t' rea
   fi
 done
 
-if [[ ${fail:-0} -gt 0 ]]; then
+if (( fail > 0 )); then
+  echo "[start-mlx] ${fail} model(s) failed to come up — see logs under ${MLX_DIR}/" >&2
   exit 1
 fi
 

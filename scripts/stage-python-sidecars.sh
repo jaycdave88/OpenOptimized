@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash
+# Associative arrays (`declare -A`) require bash 4+. macOS ships bash 3.2.
+if [[ "${BASH_VERSINFO:-0}" -lt 4 ]]; then
+  for candidate in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    if [[ -x "$candidate" ]]; then
+      exec "$candidate" "$0" "$@"
+    fi
+  done
+  echo "error: this script needs bash 4+. Install via: brew install bash" >&2
+  echo "       currently running: ${BASH_VERSION:-unknown}" >&2
+  exit 1
+fi
 #
 # stage-python-sidecars.sh
 #
