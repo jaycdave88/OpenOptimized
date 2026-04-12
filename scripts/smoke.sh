@@ -74,7 +74,7 @@ count=$(find "${ROOT}/vendor/agency-agents" -name "*.md" -not -path "*/.git/*" -
 if [[ "${count}" -gt 100 ]]; then pass "vendor/agency-agents personas: ${count}"; else fail "agency-agents too small (got ${count})"; fi
 
 echo "==> Critical files"
-for f in LICENSE LICENSES.md UPSTREAM.md README.md resources/opencode.defaults.json resources/opencode-plugins.json resources/flash-moe/install.sh resources/microfish/install.sh resources/microfish/launch.sh scripts/build-mac.sh scripts/fetch-mcp-bins.ts scripts/bootstrap-python-sidecars.sh apps/desktop/src-tauri/src/commands/ollama.rs apps/desktop/src-tauri/src/commands/oo_mcp.rs apps/desktop/src-tauri/src/commands/oo_bootstrap.rs apps/desktop/src-tauri/src/commands/oo_extras.rs; do
+for f in LICENSE LICENSES.md UPSTREAM.md README.md CONTRIBUTING.md CHANGELOG.md resources/opencode.defaults.json resources/opencode-plugins.json resources/flash-moe/install.sh resources/microfish/install.sh resources/microfish/launch.sh scripts/build-mac.sh scripts/build-mcp-bins.sh scripts/stage-python-sidecars.sh scripts/upstream-diff.sh scripts/fetch-mcp-bins.ts scripts/bootstrap-python-sidecars.sh .github/workflows/oo-smoke.yml apps/desktop/src-tauri/src/commands/ollama.rs apps/desktop/src-tauri/src/commands/oo_mcp.rs apps/desktop/src-tauri/src/commands/oo_bootstrap.rs apps/desktop/src-tauri/src/commands/oo_extras.rs; do
   if [[ -f "${ROOT}/${f}" ]]; then pass "${f}"; else fail "missing ${f}"; fi
 done
 

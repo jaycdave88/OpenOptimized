@@ -1,0 +1,33 @@
+name: OpenOptimized smoke
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke (offline)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Python (for smoke schema check)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run smoke
+        run: ./scripts/smoke.sh --offline
+
+      - name: Upstream drift report (non-blocking)
+        run: ./scripts/upstream-diff.sh || true
