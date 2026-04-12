@@ -30,9 +30,9 @@ Track the staged plan in `/root/.claude/plans/synthetic-napping-lampson.md`
 | [mempalace](https://github.com/jaycdave88/mempalace) | Long-term persistent memory | **Bundled MCP** (`vendor/mempalace` submodule, 19 tools, local-first) |
 | [graphify](https://github.com/jaycdave88/graphify) | Code/doc knowledge graph | **Bundled MCP** (`vendor/graphify` submodule) |
 | [context-mode](https://github.com/jaycdave88/context-mode) | Context window pruning | **Bundled MCP** (`vendor/context-mode` submodule, ELv2, desktop-only) |
-| [agency-agents](https://github.com/jaycdave88/agency-agents) | Pre-built agent personas | **Seed personas** — curated subset copied into `.opencode/agents/` on first run; `AgentLibrary` tab manages them |
-| [deer-flow](https://github.com/jaycdave88/deer-flow) | Multi-agent orchestration | **Python sidecar** — installed into a venv on first `Plan` mode use via `scripts/bootstrap-python-sidecars.sh` |
-| [autoresearch](https://github.com/jaycdave88/autoresearch) | Autonomous research loop | **Python sidecar** — installed into a venv on first `Research` mode use; wrapped by `@oo/research` |
+| [agency-agents](https://github.com/jaycdave88/agency-agents) | Pre-built agent personas | **Vendored source** (`vendor/agency-agents`); 200+ personas browsable in Settings → Agent library; seeded subset auto-installed |
+| [deer-flow](https://github.com/jaycdave88/deer-flow) | Multi-agent orchestration | **Vendored source** (`vendor/deer-flow`); first-launch venv from staged `resources/sidecar/deerflow/` |
+| [autoresearch](https://github.com/jaycdave88/autoresearch) | Autonomous research loop | **Vendored source** (`vendor/autoresearch`); first-launch venv from staged `resources/sidecar/autoresearch/`; wrapped by `@oo/research` |
 | [flash-moe](https://github.com/jaycdave88/flash-moe) | 397B MoE native Mac inference | **Optional extra** — installed via Settings → Extras; registered as a second provider in `opencode.defaults.json` (disabled until installed) |
 | [MicroFish-En](https://github.com/jaycdave88/MicroFish-En) | Doc → multi-agent sim (AGPL) | **Optional extra, license-isolated** — user-installed, runs as a detached process, opened in the default browser; see `LICENSES.md` |
 | [awesome-opencode](https://github.com/awesome-opencode/awesome-opencode) | Curated ecosystem directory | **Plugin registry** — shortlist in `resources/opencode-plugins.json`, browsable via Settings → Plugins, installs via OpenCode's plugin system |
@@ -57,11 +57,14 @@ Track the staged plan in `/root/.claude/plans/synthetic-napping-lampson.md`
 
 ```
 /openOptimized
-  vendor/                           git submodules — MCP sources built from
-    cocoindex-code/                 source by scripts/build-mcp-bins.sh
-    mempalace/
-    graphify/
-    context-mode/
+  vendor/                           git submodules — every repo we bundle
+    cocoindex-code/                 MCP (Python)   Wave 4
+    mempalace/                      MCP (Python)   Wave 4
+    graphify/                       MCP (Python)   Wave 4
+    context-mode/                   MCP (Node)     Wave 4
+    deer-flow/                      sidecar        Wave 5
+    autoresearch/                   sidecar        Wave 5
+    agency-agents/                  200+ personas  Wave 5
   apps/                             forked from openwork (desktop, app, orchestrator, server, ...)
   packages/
     @openwork/*                     kept from upstream

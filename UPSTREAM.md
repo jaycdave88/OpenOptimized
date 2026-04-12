@@ -56,26 +56,47 @@ We do not auto-merge upstream, but we do want visibility. A `scripts/upstream-di
 (TODO) will print commits on `jaycdave88/openwork:dev` since the pinned SHA,
 so we can cherry-pick deliberately.
 
-## Vendored MCP submodules (Level B)
+## Vendored submodules (Levels B + C)
 
-The four bundled MCP servers are tracked as git submodules under `vendor/`.
-This replaces the earlier "fetch prebuilt release binaries" approach (which
-was blocked on upstream not publishing tagged release artifacts).
+Seven git submodules under `vendor/` carry every piece of source code we
+bundle. Level B covers the four bundled MCP servers; Level C extends the
+same approach to the two Python sidecars and the agency-agents persona
+catalog.
 
-| Submodule | Repo | Branch at fork | Pinned SHA |
-|-----------|------|----------------|------------|
-| `vendor/cocoindex-code` | jaycdave88/cocoindex-code | main | `49374cf4b52165c762d7d91958bdf06129ab8444` |
-| `vendor/mempalace` | jaycdave88/mempalace | main | `b370e86f9693337571f04567d813f4bc3e734a47` |
-| `vendor/graphify` | jaycdave88/graphify | v3 | `92b70ce5f4f208bb7ea4d4e796f70e52e40418eb` |
-| `vendor/context-mode` | jaycdave88/context-mode | main | `19519a59297d30720c6e047ee5845230a5696e43` |
+| Submodule | Repo | Branch | Pinned SHA | Wave |
+|-----------|------|--------|------------|------|
+| `vendor/cocoindex-code` | jaycdave88/cocoindex-code | main | `49374cf4b52165c762d7d91958bdf06129ab8444` | B |
+| `vendor/mempalace` | jaycdave88/mempalace | main | `b370e86f9693337571f04567d813f4bc3e734a47` | B |
+| `vendor/graphify` | jaycdave88/graphify | v3 | `92b70ce5f4f208bb7ea4d4e796f70e52e40418eb` | B |
+| `vendor/context-mode` | jaycdave88/context-mode | main | `19519a59297d30720c6e047ee5845230a5696e43` | B |
+| `vendor/deer-flow` | jaycdave88/deer-flow | main | `2efa84af02ba2d3ed90109146674509ef8b547e3` | C |
+| `vendor/autoresearch` | jaycdave88/autoresearch | master | `e6d79c123441a53d91bb8df7adf4db45cf120bf1` | C |
+| `vendor/agency-agents` | jaycdave88/agency-agents | main | `4feb0cd736dd0e2e9830cd54dfc99770621bed90` | C |
 
-Each is cloned on `git submodule update --init`; `scripts/build-mac.sh` and
-`scripts/build-mcp-bins.sh` call this automatically. Bumping a pin:
+### Not vendored (deliberate)
+
+- **jaycdave88/MicroFish-En** — AGPL-3.0. Vendoring the source would
+  force the combined OpenOptimized distribution into AGPL. Stays as a
+  user-initiated install via `resources/microfish/install.sh`.
+- **jaycdave88/flash-moe** — upstream license TBD. Vendoring source with
+  an unspecified license is a legal risk. Stays as a user-initiated
+  install via `resources/flash-moe/install.sh`.
+
+Both are still fully reachable from the UI (Settings → Extras); the
+install step clones upstream into the user's own machine, not our bundle.
+
+Each is cloned on `git submodule update --init`; `scripts/build-mac.sh`
+calls this automatically. Bumping a pin:
 
 ```bash
 git submodule update --remote vendor/<repo>
 git add vendor/<repo>
-./scripts/build-mcp-bins.sh <name>   # regenerate staging dir
+
+# Regenerate the matching staging dir:
+./scripts/build-mcp-bins.sh <name>           # for cocoindex/mempalace/graphify/context-mode
+./scripts/stage-python-sidecars.sh <name>    # for deerflow/autoresearch
+# agency-agents is restaged by build-mac.sh on every build; no separate script.
+
 git commit -m "bump <repo> to <new-sha>"
 ```
 

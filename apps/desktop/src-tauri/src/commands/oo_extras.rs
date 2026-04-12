@@ -158,6 +158,90 @@ pub fn oo_plugins_list(app: AppHandle) -> Result<Value, String> {
 }
 
 // ---------------------------------------------------------------------------
+// Agency-Agents: browse and install personas from vendor/agency-agents/.
+// Vendored as a git submodule; staged into resources/agency-agents/ at build
+// time (same layout as the upstream repo: categories/<category>/*.md).
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct AgencyAgent {
+    pub id: String,
+    pub category: String,
+    pub file: String,
+}
+
+fn agency_root(app: &AppHandle) -> Result<PathBuf, String> {
+    let resources = resources_dir(app)?;
+    // Try staged resources first (prod bundle), then vendor/ (dev).
+    let staged = resources.join("agency-agents");
+    if staged.exists() {
+        return Ok(staged);
+    }
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repo_root = manifest
+        .parent()
+        .and_then(|p| p.parent())
+        .and_then(|p| p.parent())
+        .ok_or_else(|| "repo root not found".to_string())?;
+    Ok(repo_root.join("vendor").join("agency-agents"))
+}
+
+#[tauri::command]
+pub fn agency_agents_list(app: AppHandle) -> Result<Vec<AgencyAgent>, String> {
+    let root = agency_root(&app)?;
+    if !root.exists() {
+        return Ok(Vec::new());
+    }
+    let mut out: Vec<AgencyAgent> = Vec::new();
+    for entry in fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if !entry.file_type().map_err(|e| e.to_string())?.is_dir() {
+            continue;
+        }
+        let category = entry.file_name().to_string_lossy().to_string();
+        // Skip vendor metadata dirs
+        if category.starts_with('.') || category == "scripts" || category == "integrations" {
+            continue;
+        }
+        for file in fs::read_dir(entry.path()).map_err(|e| e.to_string())? {
+            let file = file.map_err(|e| e.to_string())?;
+            let name = file.file_name().to_string_lossy().to_string();
+            if !name.ends_with(".md") || name == "README.md" {
+                continue;
+            }
+            let id = name.trim_end_matches(".md").to_string();
+            out.push(AgencyAgent {
+                id,
+                category: category.clone(),
+                file: name,
+            });
+        }
+    }
+    out.sort_by(|a, b| a.category.cmp(&b.category).then_with(|| a.id.cmp(&b.id)));
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn agency_agents_install(app: AppHandle, id: String, category: String) -> Result<String, String> {
+    let root = agency_root(&app)?;
+    let file = format!("{id}.md");
+    let src = root.join(&category).join(&file);
+    if !src.exists() {
+        return Err(format!("persona not found: {}/{}", category, file));
+    }
+    let user_dir = app
+        .path()
+        .app_config_dir()
+        .or_else(|_| app.path().app_data_dir())
+        .map_err(|e| format!("user data dir: {e}"))?;
+    let dest_dir = user_dir.join(".opencode").join("agents");
+    fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
+    let dest = dest_dir.join(&file);
+    fs::copy(&src, &dest).map_err(|e| e.to_string())?;
+    Ok(dest.display().to_string())
+}
+
+// ---------------------------------------------------------------------------
 // Internal: shell out to one of the resources/*.sh scripts and forward each
 // line of stdout as a Tauri event. Keeps the UI decoupled from the script
 // protocol. Events are `<event_name>` with payload `{ kind, line }`.

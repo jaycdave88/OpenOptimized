@@ -10,3 +10,15 @@
 [submodule "vendor/context-mode"]
 	path = vendor/context-mode
 	url = https://github.com/jaycdave88/context-mode.git
+[submodule "vendor/deer-flow"]
+	path = vendor/deer-flow
+	url = https://github.com/jaycdave88/deer-flow.git
+	branch = main
+[submodule "vendor/autoresearch"]
+	path = vendor/autoresearch
+	url = https://github.com/jaycdave88/autoresearch.git
+	branch = master
+[submodule "vendor/agency-agents"]
+	path = vendor/agency-agents
+	url = https://github.com/jaycdave88/agency-agents.git
+	branch = main

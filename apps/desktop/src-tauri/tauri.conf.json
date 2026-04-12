@@ -45,10 +45,15 @@
     ],
     "resources": [
       "../../../resources/opencode.defaults.json",
+      "../../../resources/opencode-plugins.json",
       "../../../resources/agents/**/*",
+      "../../../resources/agency-agents/**/*",
       "../../../resources/mcp-bin/**/*",
+      "../../../resources/sidecar/**/*",
       "../../../resources/deerflow/**/*",
-      "../../../resources/autoresearch/**/*"
+      "../../../resources/autoresearch/**/*",
+      "../../../resources/flash-moe/**/*",
+      "../../../resources/microfish/**/*"
     ]
   },
   "plugins": {

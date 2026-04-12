@@ -11,19 +11,19 @@ OpenOptimized.
 |-----------|--------|---------|-------|
 | OpenWork (fork base) | jaycdave88/openwork | MIT | embedded, hard fork |
 | OpenCode (agent runtime) | sst/opencode | MIT | bundled sidecar |
-| CocoIndex MCP | jaycdave88/cocoindex-code | Apache 2.0 | bundled binary, runs per-session |
-| MemPalace MCP | jaycdave88/mempalace | MIT | bundled binary, persistent memory |
-| Graphify MCP | jaycdave88/graphify | MIT | bundled binary, code knowledge graph |
-| **context-mode MCP** | jaycdave88/context-mode | **ELv2** | bundled binary, desktop-only use |
-| Agency Agents | jaycdave88/agency-agents | MIT | persona `.md` files copied at first run |
+| CocoIndex MCP | jaycdave88/cocoindex-code | Apache 2.0 | vendored source (`vendor/cocoindex-code`), built into per-user venv on first launch |
+| MemPalace MCP | jaycdave88/mempalace | MIT | vendored source (`vendor/mempalace`), per-user venv |
+| Graphify MCP | jaycdave88/graphify | MIT | vendored source (`vendor/graphify`), per-user venv |
+| **context-mode MCP** | jaycdave88/context-mode | **ELv2** | vendored source (`vendor/context-mode`), node runtime, desktop-only use |
+| DeerFlow | jaycdave88/deer-flow | MIT | vendored source (`vendor/deer-flow`), per-user venv on first `Plan` mode use |
+| autoresearch | jaycdave88/autoresearch | MIT | vendored source (`vendor/autoresearch`), per-user venv on first `Research` mode use |
+| Agency Agents | jaycdave88/agency-agents | MIT | vendored source (`vendor/agency-agents`), 200+ personas; seeded subset copied at first run, rest browsable via Agent Library tab |
 
-## Installed on first use (not bundled, license-respectful)
+## Installed on first use (not bundled — user-initiated install)
 
 | Component | Source | License | How delivered |
 |-----------|--------|---------|---------------|
-| DeerFlow | jaycdave88/deer-flow | MIT | cloned into `$APPSUPPORT/OpenOptimized/deerflow/` on first `Plan` mode use |
-| autoresearch | jaycdave88/autoresearch | MIT | cloned into `$APPSUPPORT/OpenOptimized/autoresearch/` on first `Research` mode use |
-| Flash-MoE | jaycdave88/flash-moe | TBD upstream | cloned into `$APPSUPPORT/OpenOptimized/flash-moe/` via user action in Settings → Extras |
+| Flash-MoE | jaycdave88/flash-moe | **TBD upstream** | cloned into `$APPSUPPORT/OpenOptimized/flash-moe/` via user action in Settings → Extras. Deliberately NOT vendored: unspecified license is a legal risk for redistribution. |
 
 ## Installed on first use with strict license isolation
 

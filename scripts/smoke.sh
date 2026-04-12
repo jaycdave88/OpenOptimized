@@ -29,7 +29,7 @@ for d in apps/app apps/desktop apps/orchestrator apps/oo-supervisor packages/@oo
 done
 
 echo "==> Submodule pins (vendor/)"
-for repo in cocoindex-code mempalace graphify context-mode; do
+for repo in cocoindex-code mempalace graphify context-mode deer-flow autoresearch agency-agents; do
   if git -C "${ROOT}/vendor/${repo}" rev-parse HEAD >/dev/null 2>&1; then
     pass "vendor/${repo} at $(git -C "${ROOT}/vendor/${repo}" rev-parse --short HEAD)"
   else
@@ -53,13 +53,33 @@ for name in cocoindex mempalace graphify context-mode; do
   done
 done
 
+echo "==> stage-python-sidecars"
+if bash "${ROOT}/scripts/stage-python-sidecars.sh" >/tmp/smoke-sidecar.log 2>&1; then
+  pass "stage-python-sidecars.sh --all"
+else
+  fail "stage-python-sidecars.sh failed (see /tmp/smoke-sidecar.log)"
+fi
+for name in deerflow autoresearch; do
+  for f in source run.sh setup.sh MANIFEST.json; do
+    if [[ -e "${ROOT}/resources/sidecar/${name}/${f}" ]]; then
+      pass "sidecar/${name}/${f}"
+    else
+      fail "missing sidecar/${name}/${f}"
+    fi
+  done
+done
+
+echo "==> agency-agents catalog reachable"
+count=$(find "${ROOT}/vendor/agency-agents" -name "*.md" -not -path "*/.git/*" -not -name "README.md" 2>/dev/null | wc -l | tr -d ' ')
+if [[ "${count}" -gt 100 ]]; then pass "vendor/agency-agents personas: ${count}"; else fail "agency-agents too small (got ${count})"; fi
+
 echo "==> Critical files"
 for f in LICENSE LICENSES.md UPSTREAM.md README.md resources/opencode.defaults.json resources/opencode-plugins.json resources/flash-moe/install.sh resources/microfish/install.sh resources/microfish/launch.sh scripts/build-mac.sh scripts/fetch-mcp-bins.ts scripts/bootstrap-python-sidecars.sh apps/desktop/src-tauri/src/commands/ollama.rs apps/desktop/src-tauri/src/commands/oo_mcp.rs apps/desktop/src-tauri/src/commands/oo_bootstrap.rs apps/desktop/src-tauri/src/commands/oo_extras.rs; do
   if [[ -f "${ROOT}/${f}" ]]; then pass "${f}"; else fail "missing ${f}"; fi
 done
 
 echo "==> Tauri commands wired in invoke_handler"
-for cmd in ollama_status ollama_list_models ollama_pull_model oo_mcp_status oo_mcp_restart oo_bootstrap flash_moe_status flash_moe_install microfish_status microfish_install microfish_launch oo_plugins_list; do
+for cmd in ollama_status ollama_list_models ollama_pull_model oo_mcp_status oo_mcp_restart oo_bootstrap flash_moe_status flash_moe_install microfish_status microfish_install microfish_launch oo_plugins_list agency_agents_list agency_agents_install; do
   if grep -q "${cmd}" "${ROOT}/apps/desktop/src-tauri/src/lib.rs"; then pass "invoke_handler ${cmd}"; else fail "${cmd} not in lib.rs"; fi
 done
 

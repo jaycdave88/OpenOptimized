@@ -39,11 +39,26 @@ pnpm install --frozen-lockfile
 echo "==> Ensuring both Apple targets are installed"
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
-echo "==> Initializing vendor/ submodules (MCP sources)"
+echo "==> Initializing vendor/ submodules (MCP + sidecar + personas)"
 git submodule update --init --depth=1 -- vendor
 
 echo "==> Staging MCP servers from vendor/ sources"
 ./scripts/build-mcp-bins.sh
+
+echo "==> Staging Python sidecars (DeerFlow, autoresearch)"
+./scripts/stage-python-sidecars.sh
+
+echo "==> Staging agency-agents catalog"
+rm -rf resources/agency-agents
+mkdir -p resources/agency-agents
+# Mirror the upstream layout (categories/<category>/*.md) into resources/;
+# the Rust `agency_agents_list` command reads from here in prod builds.
+for d in vendor/agency-agents/*/; do
+  cat="$(basename "${d}")"
+  case "${cat}" in .*|scripts|integrations) continue;; esac
+  mkdir -p "resources/agency-agents/${cat}"
+  cp -R "${d}"*.md "resources/agency-agents/${cat}/" 2>/dev/null || true
+done
 
 echo "==> Building UI"
 pnpm build:ui

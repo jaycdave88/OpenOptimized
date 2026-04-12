@@ -18,6 +18,12 @@ resources/mcp-bin/*/
 !resources/mcp-bin/README.md
 !resources/mcp-bin/.gitkeep
 
+# Python sidecar staging and agency-agents staging — both generated at
+# build time by scripts/stage-python-sidecars.sh and scripts/build-mac.sh
+# from the corresponding vendor/ submodules.
+resources/sidecar/
+resources/agency-agents/
+
 # Local git worktrees
 _worktrees/
 
