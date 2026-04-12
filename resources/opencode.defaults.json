@@ -40,6 +40,23 @@
           "attachment": false
         }
       }
+    },
+    "flash-moe": {
+      "$comment": "Disabled by default. ModelManager flips `enabled` to true after flash_moe_install completes.",
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Flash-MoE (local, Apple Silicon only)",
+      "enabled": false,
+      "options": {
+        "baseURL": "http://127.0.0.1:41234/v1"
+      },
+      "models": {
+        "qwen-397b-moe": {
+          "name": "Qwen 397B MoE (Flash-MoE)",
+          "tools": true,
+          "reasoning": false,
+          "attachment": false
+        }
+      }
     }
   },
   "model": "ollama/qwen2.5-coder:14b",

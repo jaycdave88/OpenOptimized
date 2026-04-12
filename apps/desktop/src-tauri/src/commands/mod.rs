@@ -4,6 +4,7 @@ pub mod engine;
 pub mod misc;
 pub mod ollama;
 pub mod oo_bootstrap;
+pub mod oo_extras;
 pub mod oo_mcp;
 pub mod opencode_router;
 pub mod openwork_server;

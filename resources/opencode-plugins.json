@@ -1,0 +1,98 @@
+{
+  "$schema": "https://openoptimized.dev/schemas/plugins.json",
+  "$comment": "Curated subset of https://github.com/awesome-opencode/awesome-opencode that OpenOptimized ships as suggested installs. The PluginsBrowser panel reads this list and invokes OpenCode's skill/plugin installer per entry. Entries are source-of-truth; bumping refs is a reviewable change.",
+  "source": "https://github.com/awesome-opencode/awesome-opencode",
+  "revision": "shortlist-v1",
+  "plugins": [
+    {
+      "id": "opencode-mem",
+      "name": "Opencode Mem",
+      "category": "memory",
+      "description": "Persistent memory across sessions with vector DB, dual memory scopes, and a web UI. Complements MemPalace for lighter-weight scratchpad memory.",
+      "repo": "tickernelz/opencode-mem",
+      "install": "opencode plugin install tickernelz/opencode-mem",
+      "recommended": false
+    },
+    {
+      "id": "agent-memory",
+      "name": "Agent Memory",
+      "category": "memory",
+      "description": "Self-editable memory blocks inspired by Letta. Useful for long-running agents.",
+      "repo": "joshuadavidthomas/opencode-agent-memory",
+      "install": "opencode plugin install joshuadavidthomas/opencode-agent-memory",
+      "recommended": false
+    },
+    {
+      "id": "oh-my-opencode",
+      "name": "Oh My Opencode",
+      "category": "orchestration",
+      "description": "Multi-agent orchestration with LSP, AST, MCP tools and a Claude Code compatibility layer. Complements DeerFlow mode.",
+      "repo": "oh-my-opencode/oh-my-opencode",
+      "install": "opencode plugin install oh-my-opencode/oh-my-opencode",
+      "recommended": true
+    },
+    {
+      "id": "opencode-workspace",
+      "name": "Opencode Workspace",
+      "category": "orchestration",
+      "description": "16-component bundled orchestration harness.",
+      "repo": "opencode-workspace/opencode-workspace",
+      "install": "opencode plugin install opencode-workspace/opencode-workspace",
+      "recommended": false
+    },
+    {
+      "id": "opencode-sessions",
+      "name": "Opencode Sessions",
+      "category": "orchestration",
+      "description": "Session management for multi-agent collaboration.",
+      "repo": "opencode-sessions/opencode-sessions",
+      "install": "opencode plugin install opencode-sessions/opencode-sessions",
+      "recommended": false
+    },
+    {
+      "id": "dynamic-context-pruning",
+      "name": "Dynamic Context Pruning",
+      "category": "context",
+      "description": "Token optimization by removing obsolete tool outputs. Complements context-mode MCP for finer-grained pruning during a session.",
+      "repo": "awesome-opencode/dynamic-context-pruning",
+      "install": "opencode plugin install awesome-opencode/dynamic-context-pruning",
+      "recommended": true
+    },
+    {
+      "id": "morph-fast-apply",
+      "name": "Morph Fast Apply",
+      "category": "editing",
+      "description": "10,500+ tokens/sec code editing integration. Dramatically speeds up large refactor diffs.",
+      "repo": "awesome-opencode/morph-fast-apply",
+      "install": "opencode plugin install awesome-opencode/morph-fast-apply",
+      "recommended": true
+    },
+    {
+      "id": "model-announcer",
+      "name": "Model Announcer",
+      "category": "awareness",
+      "description": "Injects the current model name into the prompt for self-aware model routing.",
+      "repo": "awesome-opencode/model-announcer",
+      "install": "opencode plugin install awesome-opencode/model-announcer",
+      "recommended": false
+    },
+    {
+      "id": "opencode-quota",
+      "name": "Opencode Quota",
+      "category": "observability",
+      "description": "Track token usage and quota across providers. Recommended when mixing Ollama with cloud fallback.",
+      "repo": "awesome-opencode/opencode-quota",
+      "install": "opencode plugin install awesome-opencode/opencode-quota",
+      "recommended": true
+    },
+    {
+      "id": "opencode-canvas",
+      "name": "Opencode Canvas",
+      "category": "ui",
+      "description": "Terminal UI components (calendars, documents) for visualizing tool output.",
+      "repo": "awesome-opencode/opencode-canvas",
+      "install": "opencode plugin install awesome-opencode/opencode-canvas",
+      "recommended": false
+    }
+  ]
+}

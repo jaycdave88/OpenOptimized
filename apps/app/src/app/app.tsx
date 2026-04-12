@@ -2339,6 +2339,8 @@ export default function App() {
     "models",
     "mcp",
     "agents",
+    "plugins",
+    "extras",
   ]);
 
   const resolveSettingsTab = (value?: string | null) => {

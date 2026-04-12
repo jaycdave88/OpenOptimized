@@ -25,6 +25,8 @@ import TextInput from "../components/text-input";
 import ModelManager from "../components/features/models/ModelManager";
 import McpHealthPanel from "../components/features/mcp/McpHealthPanel";
 import AgentLibrary from "../components/features/agents/AgentLibrary";
+import PluginsBrowser from "../components/features/plugins/PluginsBrowser";
+import ExtrasPanel from "../components/features/extras/ExtrasPanel";
 import { useModelControls } from "../app-settings/model-controls-provider";
 import { useSessionDisplayPreferences } from "../app-settings/session-display-preferences";
 import { usePlatform } from "../context/platform";
@@ -816,6 +818,10 @@ export default function SettingsView(props: SettingsViewProps) {
         return "MCP servers";
       case "agents":
         return "Agent library";
+      case "plugins":
+        return "Plugins";
+      case "extras":
+        return "Extras";
       default:
         return t("settings.tab_general");
     }
@@ -838,6 +844,8 @@ export default function SettingsView(props: SettingsViewProps) {
       "models",
       "mcp",
       "agents",
+      "plugins",
+      "extras",
       "updates",
       "recovery",
     ];
@@ -1395,6 +1403,10 @@ export default function SettingsView(props: SettingsViewProps) {
         return "Status and controls for bundled MCP servers: CocoIndex, MemPalace, Graphify, context-mode.";
       case "agents":
         return "Persona library. Pre-installed agents (repo-navigator, refactor-planner, security-reviewer) can be enabled per session.";
+      case "plugins":
+        return "Curated OpenCode plugins from the awesome-opencode list. Install per-plugin via OpenCode's own plugin system.";
+      case "extras":
+        return "Optional, user-installed integrations: Flash-MoE (native Mac MoE inference) and MicroFish-En (AGPL-isolated multi-agent doc platform).";
       default:
         return t("settings.tab_description_general");
     }
@@ -3698,6 +3710,16 @@ export default function SettingsView(props: SettingsViewProps) {
         {/* OpenOptimized: agent library */}
         <Match when={activeTab() === "agents"}>
           <AgentLibrary />
+        </Match>
+
+        {/* OpenOptimized: awesome-opencode curated plugins */}
+        <Match when={activeTab() === "plugins"}>
+          <PluginsBrowser />
+        </Match>
+
+        {/* OpenOptimized: optional extras (Flash-MoE, MicroFish-En) */}
+        <Match when={activeTab() === "extras"}>
+          <ExtrasPanel />
         </Match>
       </Switch>
       </div>

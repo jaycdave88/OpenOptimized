@@ -28,6 +28,10 @@ use commands::misc::{
 };
 use commands::ollama::{ollama_list_models, ollama_pull_model, ollama_status};
 use commands::oo_bootstrap::oo_bootstrap;
+use commands::oo_extras::{
+    flash_moe_install, flash_moe_status, microfish_install, microfish_launch, microfish_status,
+    oo_plugins_list,
+};
 use commands::oo_mcp::{oo_mcp_restart, oo_mcp_status};
 use commands::opencode_router::{
     opencodeRouter_config_set, opencodeRouter_info, opencodeRouter_start, opencodeRouter_status,
@@ -226,7 +230,13 @@ pub fn run() {
             ollama_pull_model,
             oo_mcp_status,
             oo_mcp_restart,
-            oo_bootstrap
+            oo_bootstrap,
+            flash_moe_status,
+            flash_moe_install,
+            microfish_status,
+            microfish_install,
+            microfish_launch,
+            oo_plugins_list
         ])
         .build(tauri::generate_context!())
         .expect("error while building OpenWork");

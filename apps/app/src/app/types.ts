@@ -173,7 +173,9 @@ export type SettingsTab =
   // OpenOptimized additions
   | "models"
   | "mcp"
-  | "agents";
+  | "agents"
+  | "plugins"
+  | "extras";
 
 export type WorkspacePreset = "starter" | "automation" | "minimal";
 

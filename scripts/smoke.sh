@@ -24,18 +24,33 @@ fail() { printf "  \033[31mFAIL\033[0m  %s\n" "$1"; exit 1; }
 skip() { printf "  \033[33mSKIP\033[0m  %s\n" "$1"; }
 
 echo "==> Repo structure"
-for d in apps/app apps/desktop apps/orchestrator apps/oo-supervisor packages/@oo/mcp-supervisor packages/@oo/ollama-client packages/@oo/config packages/@oo/research resources/agents; do
+for d in apps/app apps/desktop apps/orchestrator apps/oo-supervisor packages/@oo/mcp-supervisor packages/@oo/ollama-client packages/@oo/config packages/@oo/research resources/agents resources/flash-moe resources/microfish resources/deerflow resources/autoresearch; do
   if [[ -d "${ROOT}/${d}" ]]; then pass "${d}"; else fail "missing ${d}"; fi
 done
 
 echo "==> Critical files"
-for f in LICENSE LICENSES.md UPSTREAM.md README.md resources/opencode.defaults.json scripts/build-mac.sh scripts/fetch-mcp-bins.ts scripts/bootstrap-python-sidecars.sh apps/desktop/src-tauri/src/commands/ollama.rs apps/desktop/src-tauri/src/commands/oo_mcp.rs apps/desktop/src-tauri/src/commands/oo_bootstrap.rs; do
+for f in LICENSE LICENSES.md UPSTREAM.md README.md resources/opencode.defaults.json resources/opencode-plugins.json resources/flash-moe/install.sh resources/microfish/install.sh resources/microfish/launch.sh scripts/build-mac.sh scripts/fetch-mcp-bins.ts scripts/bootstrap-python-sidecars.sh apps/desktop/src-tauri/src/commands/ollama.rs apps/desktop/src-tauri/src/commands/oo_mcp.rs apps/desktop/src-tauri/src/commands/oo_bootstrap.rs apps/desktop/src-tauri/src/commands/oo_extras.rs; do
   if [[ -f "${ROOT}/${f}" ]]; then pass "${f}"; else fail "missing ${f}"; fi
 done
 
 echo "==> Tauri commands wired in invoke_handler"
-for cmd in ollama_status ollama_list_models ollama_pull_model oo_mcp_status oo_mcp_restart oo_bootstrap; do
+for cmd in ollama_status ollama_list_models ollama_pull_model oo_mcp_status oo_mcp_restart oo_bootstrap flash_moe_status flash_moe_install microfish_status microfish_install microfish_launch oo_plugins_list; do
   if grep -q "${cmd}" "${ROOT}/apps/desktop/src-tauri/src/lib.rs"; then pass "invoke_handler ${cmd}"; else fail "${cmd} not in lib.rs"; fi
+done
+
+echo "==> Settings tabs registered"
+for tab in models mcp agents plugins extras; do
+  if grep -q "\"${tab}\"" "${ROOT}/apps/app/src/app/types.ts"; then pass "SettingsTab ${tab}"; else fail "${tab} not in types.ts"; fi
+done
+
+echo "==> UI feature panels"
+for panel in models/ModelManager mcp/McpHealthPanel agents/AgentLibrary plugins/PluginsBrowser extras/ExtrasPanel onboarding/Setup mode/ModeSwitcher; do
+  if [[ -f "${ROOT}/apps/app/src/app/components/features/${panel}.tsx" ]]; then pass "features/${panel}.tsx"; else fail "missing features/${panel}.tsx"; fi
+done
+
+echo "==> Integration matrix — all 10 repos reachable"
+for token in cocoindex mempalace graphify context-mode agency deer-flow autoresearch flash-moe MicroFish-En awesome-opencode; do
+  if grep -q -i "${token}" "${ROOT}/README.md"; then pass "README mentions ${token}"; else fail "README missing ${token}"; fi
 done
 
 echo "==> opencode.defaults.json schema"
