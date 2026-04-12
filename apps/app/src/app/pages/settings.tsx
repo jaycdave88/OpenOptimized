@@ -22,6 +22,9 @@ import ProviderIcon from "../components/provider-icon";
 import WebUnavailableSurface from "../components/web-unavailable-surface";
 import DenSettingsPanel from "../components/den-settings-panel";
 import TextInput from "../components/text-input";
+import ModelManager from "../components/features/models/ModelManager";
+import McpHealthPanel from "../components/features/mcp/McpHealthPanel";
+import AgentLibrary from "../components/features/agents/AgentLibrary";
 import { useModelControls } from "../app-settings/model-controls-provider";
 import { useSessionDisplayPreferences } from "../app-settings/session-display-preferences";
 import { usePlatform } from "../context/platform";
@@ -806,6 +809,13 @@ export default function SettingsView(props: SettingsViewProps) {
         return t("settings.tab_recovery");
       case "debug":
         return t("settings.tab_debug");
+      // OpenOptimized additions
+      case "models":
+        return "Models";
+      case "mcp":
+        return "MCP servers";
+      case "agents":
+        return "Agent library";
       default:
         return t("settings.tab_general");
     }
@@ -821,7 +831,16 @@ export default function SettingsView(props: SettingsViewProps) {
   ]);
 
   const globalTabs = createMemo<SettingsTab[]>(() => {
-    const tabs: SettingsTab[] = ["den", "appearance", "updates", "recovery"];
+    const tabs: SettingsTab[] = [
+      "den",
+      "appearance",
+      // OpenOptimized additions — surfaced as global (desktop-app-wide) tabs
+      "models",
+      "mcp",
+      "agents",
+      "updates",
+      "recovery",
+    ];
     if (props.developerMode) tabs.push("debug");
     return tabs;
   });
@@ -1369,6 +1388,13 @@ export default function SettingsView(props: SettingsViewProps) {
         return t("settings.tab_description_recovery");
       case "debug":
         return t("settings.tab_description_debug");
+      // OpenOptimized additions
+      case "models":
+        return "Manage local Ollama models: detect, install, and switch between chat and embedding models.";
+      case "mcp":
+        return "Status and controls for bundled MCP servers: CocoIndex, MemPalace, Graphify, context-mode.";
+      case "agents":
+        return "Persona library. Pre-installed agents (repo-navigator, refactor-planner, security-reviewer) can be enabled per session.";
       default:
         return t("settings.tab_description_general");
     }
@@ -3657,6 +3683,21 @@ export default function SettingsView(props: SettingsViewProps) {
               </div>
             </section>
           </Show>
+        </Match>
+
+        {/* OpenOptimized: local models */}
+        <Match when={activeTab() === "models"}>
+          <ModelManager />
+        </Match>
+
+        {/* OpenOptimized: MCP server health */}
+        <Match when={activeTab() === "mcp"}>
+          <McpHealthPanel />
+        </Match>
+
+        {/* OpenOptimized: agent library */}
+        <Match when={activeTab() === "agents"}>
+          <AgentLibrary />
         </Match>
       </Switch>
       </div>

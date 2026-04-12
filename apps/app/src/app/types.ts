@@ -169,7 +169,11 @@ export type SettingsTab =
   | "appearance"
   | "updates"
   | "recovery"
-  | "debug";
+  | "debug"
+  // OpenOptimized additions
+  | "models"
+  | "mcp"
+  | "agents";
 
 export type WorkspacePreset = "starter" | "automation" | "minimal";
 

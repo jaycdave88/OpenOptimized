@@ -1,3 +1,4 @@
+import { onMount } from "solid-js";
 import App from "./app";
 import { GlobalSDKProvider } from "./context/global-sdk";
 import { GlobalSyncProvider } from "./context/global-sync";
@@ -6,7 +7,28 @@ import { ServerProvider } from "./context/server";
 import { isWebDeployment } from "./lib/openwork-deployment";
 import { isTauriRuntime } from "./utils";
 
+/**
+ * OpenOptimized first-run bootstrap.
+ *
+ * Idempotent: the Rust side skips existing files. Runs once per session on
+ * Tauri only — the web deployment has no app-support dir to seed.
+ */
+async function runOOBootstrap(): Promise<void> {
+  if (!isTauriRuntime()) return;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("oo_bootstrap");
+  } catch (err) {
+    // Never let bootstrap failures block the UI from rendering.
+    console.warn("[openoptimized] bootstrap failed", err);
+  }
+}
+
 export default function AppEntry() {
+  onMount(() => {
+    void runOOBootstrap();
+  });
+
   const defaultUrl = (() => {
     // Desktop app connects to the local OpenCode engine.
     if (isTauriRuntime()) return "http://127.0.0.1:4096";

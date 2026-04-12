@@ -2335,6 +2335,10 @@ export default function App() {
     "updates",
     "recovery",
     "debug",
+    // OpenOptimized additions
+    "models",
+    "mcp",
+    "agents",
   ]);
 
   const resolveSettingsTab = (value?: string | null) => {

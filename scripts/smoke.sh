@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+#
+# smoke.sh
+#
+# Quick end-to-end sanity check. Meant to be run on a dev machine where
+# Ollama is installed; in CI we only run the no-network parts.
+#
+#   ./scripts/smoke.sh             # all checks
+#   ./scripts/smoke.sh --offline   # skip Ollama probes
+#
+# Exits 0 if every check passes, 1 on the first failure. Each check prints
+# a one-line status.
+
+set -euo pipefail
+
+OFFLINE=0
+if [[ "${1:-}" == "--offline" ]]; then OFFLINE=1; fi
+
+cd "$(dirname "$0")/.."
+ROOT="$(pwd)"
+
+pass() { printf "  \033[32mPASS\033[0m  %s\n" "$1"; }
+fail() { printf "  \033[31mFAIL\033[0m  %s\n" "$1"; exit 1; }
+skip() { printf "  \033[33mSKIP\033[0m  %s\n" "$1"; }
+
+echo "==> Repo structure"
+for d in apps/app apps/desktop apps/orchestrator apps/oo-supervisor packages/@oo/mcp-supervisor packages/@oo/ollama-client packages/@oo/config packages/@oo/research resources/agents; do
+  if [[ -d "${ROOT}/${d}" ]]; then pass "${d}"; else fail "missing ${d}"; fi
+done
+
+echo "==> Critical files"
+for f in LICENSE LICENSES.md UPSTREAM.md README.md resources/opencode.defaults.json scripts/build-mac.sh scripts/fetch-mcp-bins.ts scripts/bootstrap-python-sidecars.sh apps/desktop/src-tauri/src/commands/ollama.rs apps/desktop/src-tauri/src/commands/oo_mcp.rs apps/desktop/src-tauri/src/commands/oo_bootstrap.rs; do
+  if [[ -f "${ROOT}/${f}" ]]; then pass "${f}"; else fail "missing ${f}"; fi
+done
+
+echo "==> Tauri commands wired in invoke_handler"
+for cmd in ollama_status ollama_list_models ollama_pull_model oo_mcp_status oo_mcp_restart oo_bootstrap; do
+  if grep -q "${cmd}" "${ROOT}/apps/desktop/src-tauri/src/lib.rs"; then pass "invoke_handler ${cmd}"; else fail "${cmd} not in lib.rs"; fi
+done
+
+echo "==> opencode.defaults.json schema"
+python3 - <<PY
+import json, sys
+p = "${ROOT}/resources/opencode.defaults.json"
+with open(p) as f:
+  cfg = json.load(f)
+assert "provider" in cfg and "ollama" in cfg["provider"], "missing ollama provider"
+assert "mcp" in cfg, "missing mcp block"
+for s in ("cocoindex", "mempalace", "graphify", "context-mode"):
+  assert s in cfg["mcp"], f"missing mcp server: {s}"
+print(f"  provider count: {len(cfg['provider'])}, mcp count: {len(cfg['mcp'])}")
+PY
+pass "opencode.defaults.json valid"
+
+echo "==> Agent personas"
+count=$(ls "${ROOT}/resources/agents"/*.md 2>/dev/null | grep -v README | wc -l | tr -d ' ')
+if [[ "${count}" -lt 3 ]]; then fail "expected >=3 agent personas, got ${count}"; else pass "agent personas: ${count}"; fi
+
+echo "==> Ollama probe"
+if [[ "${OFFLINE}" -eq 1 ]]; then
+  skip "offline mode"
+else
+  if curl -s --max-time 1 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
+    pass "ollama reachable"
+  else
+    skip "ollama not running (install: brew install ollama)"
+  fi
+fi
+
+echo ""
+echo "\033[32mSmoke checks complete.\033[0m"
