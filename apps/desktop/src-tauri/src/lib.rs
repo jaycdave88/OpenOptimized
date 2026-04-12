@@ -20,7 +20,8 @@ use commands::command_files::{
 };
 use commands::config::{read_opencode_config, write_opencode_config};
 use commands::engine::{
-    engine_doctor, engine_info, engine_install, engine_restart, engine_start, engine_stop,
+    engine_doctor, engine_info, engine_install, engine_restart, engine_start, engine_start_async,
+    engine_stop,
 };
 use commands::misc::{
     app_build_info, nuke_openwork_and_opencode_config_and_exit, opencode_mcp_auth,
@@ -174,6 +175,7 @@ pub fn run() {
         .manage(WorkspaceWatchState::default())
         .invoke_handler(tauri::generate_handler![
             engine_start,
+            engine_start_async,
             engine_stop,
             engine_info,
             engine_doctor,
