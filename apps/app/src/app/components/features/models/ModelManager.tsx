@@ -65,7 +65,7 @@ export default function ModelManager() {
   onMount(async () => {
     await refresh();
     let unlisten: UnlistenFn | undefined;
-    unlisten = await listen<OllamaPullProgress>("ollama.pull.progress", (e) => {
+    unlisten = await listen<OllamaPullProgress>("ollama:pull:progress", (e) => {
       setProgress(e.payload);
     });
     onCleanup(() => unlisten?.());
