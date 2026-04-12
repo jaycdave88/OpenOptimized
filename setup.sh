@@ -19,8 +19,11 @@
 #  10. open the .app             — launch it
 #
 # Flags:
-#   --skip-ollama       skip Ollama install + model pulls
-#   --skip-models       install Ollama but skip pulling default models
+#   --skip-ollama       skip Ollama install entirely
+#   --pull-models       also pull the default Ollama models (qwen2.5-coder:14b,
+#                       nomic-embed-text). Default is NOT to pull — users with
+#                       models already installed don't waste bandwidth.
+#   --skip-models       (deprecated, now the default) no-op kept for back-compat
 #   --skip-build        stop after deps, don't run build-mac.sh
 #   --skip-launch       build but don't auto-open the .app
 #   --with-python       force Python install even if python3 is present
@@ -42,7 +45,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 SKIP_OLLAMA=0
-SKIP_MODELS=0
+PULL_MODELS=0          # default: don't pull models; user already has them locally
 SKIP_BUILD=0
 SKIP_LAUNCH=0
 SKIP_MLX=0
@@ -53,7 +56,8 @@ MLX_CONFIG=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-ollama) SKIP_OLLAMA=1; shift ;;
-    --skip-models) SKIP_MODELS=1; shift ;;
+    --pull-models) PULL_MODELS=1; shift ;;
+    --skip-models) shift ;;   # deprecated no-op; kept so existing invocations don't error
     --skip-build)  SKIP_BUILD=1; shift ;;
     --skip-launch) SKIP_LAUNCH=1; shift ;;
     --skip-mlx)    SKIP_MLX=1; shift ;;
@@ -62,7 +66,7 @@ while [[ $# -gt 0 ]]; do
     --mlx-config)  WITH_MLX=1; MLX_CONFIG="${2:?--mlx-config needs a path}"; shift 2 ;;
     --yes|-y)      ASSUME_YES=1; shift ;;
     -h|--help)
-      sed -n '2,38p' "$0"
+      sed -n '2,42p' "$0"
       exit 0
       ;;
     *) echo "unknown flag: $1" >&2; exit 2 ;;
@@ -216,20 +220,40 @@ fi
 
 if [[ "${SKIP_OLLAMA}" == "0" ]]; then
   step "Ollama"
+  OLLAMA_AVAILABLE=0
   if command -v ollama >/dev/null; then
     ok "$(ollama --version 2>&1 | head -1)"
+    OLLAMA_AVAILABLE=1
   else
     if confirm "install Ollama via Homebrew cask?"; then
       brew install --cask ollama 2>&1 | tee -a "${LOG}" >/dev/null
       ok "installed"
+      OLLAMA_AVAILABLE=1
     else
-      skip "Ollama (OpenOptimized will boot in cloud-only mode)"
-      SKIP_MODELS=1
+      skip "Ollama (OpenOptimized will boot in cloud-only / MLX-only mode)"
     fi
   fi
 
-  if [[ "${SKIP_MODELS}" == "0" ]]; then
-    step "Ollama default models"
+  # Report installed models without pulling. Users manage their own Ollama
+  # catalog; setup.sh just surfaces what's already there.
+  if [[ "${OLLAMA_AVAILABLE}" == "1" ]]; then
+    if curl -s --max-time 1 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
+      count="$(ollama list 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')"
+      if [[ "${count}" -gt 0 ]]; then
+        ok "${count} local Ollama model(s) detected"
+      else
+        info "Ollama is running but no models are installed"
+        info "use \`ollama pull <model>\` to add one, or --pull-models to fetch defaults (qwen2.5-coder:14b, nomic-embed-text)"
+      fi
+    else
+      info "Ollama not running yet — launch Ollama.app or \`ollama serve\` before using the app"
+    fi
+  fi
+
+  # Explicit opt-in model pulls. Skipped by default since users with
+  # local models don't want setup.sh to re-fetch anything.
+  if [[ "${OLLAMA_AVAILABLE}" == "1" && "${PULL_MODELS}" == "1" ]]; then
+    step "Ollama model pulls (--pull-models)"
     if ! curl -s --max-time 1 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
       info "starting Ollama server in background"
       open -a Ollama 2>/dev/null || true
@@ -237,12 +261,14 @@ if [[ "${SKIP_OLLAMA}" == "0" ]]; then
     fi
     for model in qwen2.5-coder:14b nomic-embed-text; do
       if ollama list 2>/dev/null | grep -q "^${model}"; then
-        ok "model ${model} already pulled"
+        ok "${model} already installed"
       else
-        info "pulling ${model} (this can be multi-GB; safe to ctrl-c and resume)"
-        ollama pull "${model}" 2>&1 | tee -a "${LOG}" || warn "pull of ${model} failed; you can retry later from Settings → Models"
+        info "pulling ${model} (multi-GB; safe to ctrl-c and resume)"
+        ollama pull "${model}" 2>&1 | tee -a "${LOG}" || warn "pull of ${model} failed; retry later from Settings → Models"
       fi
     done
+  elif [[ "${OLLAMA_AVAILABLE}" == "1" && "${PULL_MODELS}" == "0" ]]; then
+    skip "Ollama model pulls (opt-in via --pull-models)"
   fi
 else
   skip "Ollama install (--skip-ollama)"

@@ -20,10 +20,12 @@ cd OpenOptimized
 
 `setup.sh` is idempotent. It installs everything needed on a clean Mac Studio
 (Xcode CLI tools, Homebrew, Node 22, pnpm 10, Bun, Rust with Apple targets,
-Python 3.12, Ollama with default models), initialises the seven `vendor/`
-submodules, runs `pnpm install`, builds the universal unsigned `.app`, and
-opens it. See `setup.sh --help` for flags (`--skip-ollama`, `--skip-models`,
-`--skip-build`, `--yes`).
+Python 3.12, and the Ollama CLI), initialises the seven `vendor/` submodules,
+runs `pnpm install`, builds the universal unsigned `.app`, and opens it. It
+does **not** pull any Ollama models — if you already have local models
+(Ollama, MLX, or both) they'll be detected and left alone. Pass
+`--pull-models` if you want the defaults (`qwen2.5-coder:14b`,
+`nomic-embed-text`) fetched. See `setup.sh --help` for the full flag list.
 
 First launch triggers an onboarding overlay that verifies prerequisites and
 brings up the MCP servers. Gatekeeper will warn once because the build is
@@ -179,7 +181,7 @@ PID files and per-model logs live under `~/Library/Application Support/dev.openo
    - `.opencode/agents/` — seeded personas + any you install from Settings → Agent library
    - `mcp-bin/<name>/venv/` — per-MCP Python venv, created on first use
    - `sidecar/<name>/venv/` — per-sidecar Python venv, created on first `Plan` or `Research` mode
-4. Chat immediately against `qwen2.5-coder:14b`. CocoIndex (semantic search) and MemPalace (memory) activate as MCP tool calls.
+4. Chat against any Ollama or MLX model you've already installed. The ModelManager panel only pulls new models when you click Install on a specific row — `setup.sh` doesn't fetch anything by default.
 5. Switch to `Plan (DeerFlow)` or `Research` via the composer's ModeSwitcher. First switch to a mode triggers its Python venv bootstrap.
 6. Install awesome-opencode plugins via Settings → Plugins; click **Restart OpenCode** in the banner to activate.
 

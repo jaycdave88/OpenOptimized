@@ -5,6 +5,24 @@ shipped on `main`; `claude/review-projects-Yh6gW` was the feature branch
 during development and was merged into `main` as the new default branch
 after Wave 8.
 
+## Wave 11 — setup.sh defaults to no model pulls
+
+Behavioral change: `setup.sh` no longer pulls any Ollama models by default.
+Users with a local model catalog (Ollama, MLX, or both) don't want the
+installer re-fetching multi-gigabyte weights.
+
+- New flag: `--pull-models` (opt-in) fetches `qwen2.5-coder:14b` and
+  `nomic-embed-text` via `ollama pull`.
+- Deprecated: `--skip-models` becomes a no-op kept for back-compat so
+  existing command invocations don't error. Same effect as default
+  behavior now.
+- The Ollama step still installs the Ollama CLI (via Homebrew cask) and
+  reports the count of already-installed local models; it just doesn't
+  download anything unless asked.
+- README updated: removed the "setup.sh installs Ollama with default
+  models" claim; the Running section no longer implies that
+  ModelManager auto-pulls on first launch.
+
 ## Wave 10 — Local MLX model support
 
 - `mlx-models.example.json` at repo root — template showing the exact
