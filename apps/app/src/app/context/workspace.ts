@@ -40,6 +40,7 @@ import {
   engineInfo,
   engineInstall,
   engineStart,
+  engineStartAsync,
   engineStop,
   sandboxDoctor,
   orchestratorInstanceDispose,
@@ -3313,7 +3314,7 @@ export function createWorkspaceStore(options: {
         setAuthorizedDirs([dir]);
       }
 
-      const info = await engineStart(dir, {
+      const engineOpts = {
         preferSidecar: options.engineSource() === "sidecar",
         opencodeBinPath:
           options.engineSource() === "custom" ? options.engineCustomBinPath?.().trim() || null : null,
@@ -3321,7 +3322,53 @@ export function createWorkspaceStore(options: {
         openworkRemoteAccess: options.openworkServer.openworkServerSettings().remoteAccessEnabled === true,
         runtime: resolveEngineRuntime(),
         workspacePaths: resolveWorkspacePaths(),
+      };
+
+      // Start engine asynchronously — returns immediately with preliminary info
+      const startingInfo = await engineStartAsync(dir, engineOpts);
+      setEngine(startingInfo);
+
+      // Listen for the background engine startup to complete
+      const info = await new Promise<EngineInfo>((resolve, reject) => {
+        let cleanup: (() => void) | null = null;
+
+        const timeout = setTimeout(() => {
+          cleanup?.();
+          reject(new Error("Engine startup timed out after 35s"));
+        }, 35_000);
+
+        const setupListeners = async () => {
+          const unlistenReady = await listen<EngineInfo>("engine.ready", (event) => {
+            clearTimeout(timeout);
+            cleanup?.();
+            resolve(event.payload);
+          });
+
+          const unlistenError = await listen<{ error: string }>("engine.error", (event) => {
+            clearTimeout(timeout);
+            cleanup?.();
+            reject(new Error(event.payload.error));
+          });
+
+          const unlistenProgress = await listen<{ phase: string; attempt: number; maxAttempts: number }>(
+            "engine.progress",
+            (event) => {
+              options.setBusyLabel(
+                `Starting engine… (${event.payload.attempt}/${event.payload.maxAttempts})`,
+              );
+            },
+          );
+
+          cleanup = () => {
+            unlistenReady();
+            unlistenError();
+            unlistenProgress();
+          };
+        };
+
+        setupListeners().catch(reject);
       });
+
       setEngine(info);
 
       const username = info.opencodeUsername?.trim() ?? "";

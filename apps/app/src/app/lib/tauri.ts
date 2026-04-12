@@ -173,6 +173,28 @@ export async function engineStart(
   });
 }
 
+export async function engineStartAsync(
+  projectDir: string,
+  options?: {
+    preferSidecar?: boolean;
+    runtime?: "direct" | "openwork-orchestrator";
+    workspacePaths?: string[];
+    opencodeBinPath?: string | null;
+    opencodeEnableExa?: boolean;
+    openworkRemoteAccess?: boolean;
+  },
+): Promise<EngineInfo> {
+  return invoke<EngineInfo>("engine_start_async", {
+    projectDir,
+    preferSidecar: options?.preferSidecar ?? false,
+    opencodeBinPath: options?.opencodeBinPath ?? null,
+    opencodeEnableExa: options?.opencodeEnableExa ?? null,
+    openworkRemoteAccess: options?.openworkRemoteAccess ?? null,
+    runtime: options?.runtime ?? null,
+    workspacePaths: options?.workspacePaths ?? null,
+  });
+}
+
 export async function workspaceBootstrap(): Promise<WorkspaceList> {
   return invoke<WorkspaceList>("workspace_bootstrap");
 }
