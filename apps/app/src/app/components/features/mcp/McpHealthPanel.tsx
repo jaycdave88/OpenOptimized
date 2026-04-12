@@ -28,6 +28,7 @@ import { copyToClipboard } from "../../../lib/clipboard";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import ConfirmModal from "../../confirm-modal";
 import { useConnections } from "../../../connections/provider";
+import { isTauriRuntime } from "../../../utils";
 import type { McpServerEntry, McpStatusMap } from "../../../types";
 
 const FIRST_RUN_KEY = "oo:onboarding-complete-v2";
@@ -129,6 +130,7 @@ export default function McpHealthPanel() {
   );
 
   onMount(async () => {
+    if (!isTauriRuntime()) return;
     const initial = await invoke<McpStateSnapshot[]>("oo_mcp_status").catch(() => []);
     setRows(initial);
     let unlisten: UnlistenFn | undefined;
@@ -159,19 +161,73 @@ export default function McpHealthPanel() {
     });
   });
 
-  const restart = (id: string) =>
+  const restart = (id: string) => {
+    if (!isTauriRuntime()) {
+      setBundledNotice("Bundled MCP servers require the OpenWork desktop app to manage.");
+      clearTimeout(bundledTimer);
+      bundledTimer = setTimeout(() => setBundledNotice(null), 5000);
+      return;
+    }
     invoke("oo_mcp_restart", { id }).catch(() => {});
+  };
 
   /* ── Copy diagnostics with timed feedback ─────────── */
   const [copyBusy, setCopyBusy] = createSignal(false);
   const [copyNotice, setCopyNotice] = createSignal<string | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
 
+  const buildBrowserDiagnostics = (): string => {
+    const lines: string[] = [];
+    lines.push("=== OpenWork Diagnostics (Browser Mode) ===");
+    lines.push(`Timestamp: ${new Date().toISOString()}`);
+    lines.push(`User-Agent: ${navigator.userAgent}`);
+    lines.push(`URL: ${window.location.href}`);
+    lines.push("");
+
+    lines.push("--- Configured MCP Servers ---");
+    const servers = connections.mcpServers();
+    if (servers.length === 0) {
+      lines.push("(none)");
+    } else {
+      for (const srv of servers) {
+        const enabled = srv.config.enabled !== false ? "enabled" : "disabled";
+        lines.push(`  ${srv.name} [${enabled}]`);
+      }
+    }
+    lines.push("");
+
+    lines.push("--- MCP Statuses ---");
+    const statuses = connections.mcpStatuses() ?? {};
+    const statusEntries = Object.entries(statuses);
+    if (statusEntries.length === 0) {
+      lines.push("(none)");
+    } else {
+      for (const [name, info] of statusEntries) {
+        lines.push(`  ${name}: ${info?.status ?? "unknown"}`);
+      }
+    }
+    lines.push("");
+
+    lines.push("--- Bundled MCP Status ---");
+    for (const row of mergedRows()) {
+      lines.push(`  ${row.label} (${row.id}): ${row.status}${row.pid ? ` pid=${row.pid}` : ""}${row.restarts ? ` restarts=${row.restarts}` : ""}`);
+      if (row.lastError) lines.push(`    lastError: ${row.lastError}`);
+    }
+    lines.push("");
+
+    return lines.join("\n");
+  };
+
   const copyDiagnostics = async () => {
     setCopyBusy(true);
     setCopyNotice(null);
     try {
-      const report = await invoke<string>("oo_collect_diagnostics");
+      let report: string;
+      if (isTauriRuntime()) {
+        report = await invoke<string>("oo_collect_diagnostics");
+      } else {
+        report = buildBrowserDiagnostics();
+      }
       const ok = await copyToClipboard(report);
       if (ok) {
         setCopyNotice(`Copied ${Math.round(report.length / 1024)} KB to clipboard`);
@@ -190,10 +246,21 @@ export default function McpHealthPanel() {
 
   onCleanup(() => clearTimeout(copyTimer));
 
+  /* ── Bundled MCP notice for non-Tauri mode ────────── */
+  const [bundledNotice, setBundledNotice] = createSignal<string | null>(null);
+  let bundledTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(bundledTimer));
+
   /* ── Boot all bundled MCPs ───────────────────────── */
   const [bootBusy, setBootBusy] = createSignal(false);
 
   const bootAllMcps = async () => {
+    if (!isTauriRuntime()) {
+      setBundledNotice("Bundled MCP servers require the OpenWork desktop app to install. Please use the desktop app to manage bundled servers.");
+      clearTimeout(bundledTimer);
+      bundledTimer = setTimeout(() => setBundledNotice(null), 8000);
+      return;
+    }
     setBootBusy(true);
     try {
       await invoke("oo_mcp_boot");
@@ -293,9 +360,7 @@ export default function McpHealthPanel() {
                         isConnected() ? "bg-green-9" : "bg-gray-7"
                       }`}
                       onClick={() => {
-                        if (isConnected()) {
-                          connections.removeMcp(entry.name);
-                        }
+                        connections.toggleMcpConnection(entry.name, isConnected());
                       }}
                       title={isConnected() ? "Connected" : "Disconnected"}
                     >

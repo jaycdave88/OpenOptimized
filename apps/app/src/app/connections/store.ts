@@ -587,6 +587,33 @@ export function createConnectionsStore(options: {
     }
   }
 
+  async function toggleMcpConnection(name: string, currentlyConnected: boolean) {
+    const activeClient = await ensureActiveClient();
+    if (!activeClient) {
+      setMcpStatus(translate("mcp.connect_server_first"));
+      return;
+    }
+
+    const projectDir = options.projectDir().trim();
+    const resolvedProjectDir = await resolveProjectDir(activeClient, projectDir);
+    if (!resolvedProjectDir) {
+      setMcpStatus(translate("mcp.pick_workspace_first"));
+      return;
+    }
+
+    try {
+      setMcpStatus(null);
+      if (currentlyConnected) {
+        unwrap(await activeClient.mcp.disconnect({ directory: resolvedProjectDir, name }));
+      } else {
+        unwrap(await activeClient.mcp.connect({ directory: resolvedProjectDir, name }));
+      }
+      await refreshMcpServers();
+    } catch (e) {
+      setMcpStatus(e instanceof Error ? e.message : `Failed to ${currentlyConnected ? "disconnect" : "connect"} ${name}`);
+    }
+  }
+
   function closeMcpAuthModal() {
     setMcpAuthModalOpen(false);
     setMcpAuthEntry(null);
@@ -620,6 +647,7 @@ export function createConnectionsStore(options: {
     authorizeMcp,
     logoutMcpAuth,
     removeMcp,
+    toggleMcpConnection,
     mcpAuthModalOpen,
     mcpAuthEntry,
     mcpAuthNeedsReload,
