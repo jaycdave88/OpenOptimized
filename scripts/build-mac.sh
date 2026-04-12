@@ -78,14 +78,15 @@ cp apps/oo-supervisor/dist/bin/oo-supervisor apps/desktop/src-tauri/sidecars/oo-
 echo "==> Building UI"
 pnpm build:ui
 
-echo "==> Tauri universal build (unsigned)"
-# Default Tauri behavior is to produce the bundle (.app). We explicitly
-# do NOT pass --no-bundle. An earlier version of this script passed
-# `--no-bundle=false`, which Tauri's CLI rejected because --no-bundle is
-# a boolean flag, not a key=value option.
-pnpm tauri build --target universal-apple-darwin
+echo "==> Tauri build (Apple Silicon, unsigned)"
+# We build for aarch64-apple-darwin rather than universal-apple-darwin
+# because OpenWork's apps/desktop/scripts/prepare-sidecar.mjs (invoked as
+# beforeBuildCommand) has OpenCode asset mappings only for per-arch
+# targets, not universal. Apple Silicon covers every modern Mac; users
+# on Intel can still build from source by switching the target.
+pnpm tauri build --target aarch64-apple-darwin
 
-OUT_DIR="${ROOT}/apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos"
+OUT_DIR="${ROOT}/apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos"
 echo "==> Bundle output:"
 ls -la "${OUT_DIR}" || true
 APP_PATH=$(find "${OUT_DIR}" -maxdepth 1 -name "*.app" -print -quit || true)
