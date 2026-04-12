@@ -25,6 +25,9 @@ export default function Setup(props: { onDone: () => void }) {
   const [ollamaRunning, setOllamaRunning] = createSignal<boolean | null>(null);
 
   onMount(async () => {
+    // Idempotent first-run bootstrap: writes opencode.json and seed
+    // personas into $APPSUPPORT/OpenOptimized/ on first launch.
+    await invoke("oo_bootstrap").catch(() => null);
     const s = await invoke<{ running: boolean }>("ollama_status").catch(() => ({
       running: false,
     }));

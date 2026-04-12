@@ -12,9 +12,10 @@
  * from `src-tauri/src/commands/ollama.rs` (to be written).
  */
 
-import { For, Show, createSignal, onMount } from "solid-js";
+import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import { Download, CircleCheck, CircleAlert, Loader2 } from "lucide-solid";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 interface OllamaModel {
   name: string;
@@ -37,10 +38,18 @@ const DEFAULT_MODELS = [
   "deepseek-coder-v2:16b",
 ];
 
+interface OllamaPullProgress {
+  name: string;
+  status: string;
+  total?: number;
+  completed?: number;
+}
+
 export default function ModelManager() {
   const [status, setStatus] = createSignal<OllamaStatus | null>(null);
   const [models, setModels] = createSignal<OllamaModel[]>([]);
   const [pulling, setPulling] = createSignal<string | null>(null);
+  const [progress, setProgress] = createSignal<OllamaPullProgress | null>(null);
 
   const refresh = async () => {
     const s = await invoke<OllamaStatus>("ollama_status").catch(
@@ -53,7 +62,14 @@ export default function ModelManager() {
     }
   };
 
-  onMount(refresh);
+  onMount(async () => {
+    await refresh();
+    let unlisten: UnlistenFn | undefined;
+    unlisten = await listen<OllamaPullProgress>("ollama.pull.progress", (e) => {
+      setProgress(e.payload);
+    });
+    onCleanup(() => unlisten?.());
+  });
 
   const pull = async (name: string) => {
     setPulling(name);
@@ -113,6 +129,32 @@ export default function ModelManager() {
           )}
         </For>
       </ul>
+
+      <Show when={pulling() && progress()}>
+        {(_p) => {
+          const p = progress()!;
+          const pct = () =>
+            p.total && p.completed
+              ? Math.round((p.completed / p.total) * 100)
+              : null;
+          return (
+            <div class="flex flex-col gap-1 rounded-md border border-dls-border bg-dls-surface p-2">
+              <span class="text-xs">
+                {p.name}: <span class="font-mono">{p.status}</span>
+                <Show when={pct() !== null}> — {pct()}%</Show>
+              </span>
+              <Show when={pct() !== null}>
+                <div class="h-1 w-full overflow-hidden rounded-full bg-gray-6">
+                  <div
+                    class="h-full bg-dls-accent transition-all"
+                    style={{ width: `${pct()}%` }}
+                  />
+                </div>
+              </Show>
+            </div>
+          );
+        }}
+      </Show>
 
       <p class="text-xs text-dls-secondary">
         Models live under <code>~/.ollama/models</code>. First pull of{" "}

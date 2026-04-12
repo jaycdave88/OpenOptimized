@@ -41,7 +41,7 @@ export default function McpHealthPanel() {
   const [rows, setRows] = createSignal<McpStateSnapshot[]>([]);
 
   onMount(async () => {
-    const initial = await invoke<McpStateSnapshot[]>("mcp_status").catch(() => []);
+    const initial = await invoke<McpStateSnapshot[]>("oo_mcp_status").catch(() => []);
     setRows(initial);
     let unlisten: UnlistenFn | undefined;
     unlisten = await listen<McpStateSnapshot>("mcp.status", (e) => {
@@ -57,7 +57,7 @@ export default function McpHealthPanel() {
   });
 
   const restart = (id: McpStateSnapshot["id"]) =>
-    invoke("mcp_restart", { id }).catch(() => {});
+    invoke("oo_mcp_restart", { id }).catch(() => {});
 
   return (
     <section class="flex flex-col gap-3 p-4">

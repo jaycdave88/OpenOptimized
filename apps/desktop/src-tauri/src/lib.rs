@@ -26,6 +26,9 @@ use commands::misc::{
     app_build_info, nuke_openwork_and_opencode_config_and_exit, opencode_mcp_auth,
     reset_opencode_cache, reset_openwork_state,
 };
+use commands::ollama::{ollama_list_models, ollama_pull_model, ollama_status};
+use commands::oo_bootstrap::oo_bootstrap;
+use commands::oo_mcp::{oo_mcp_restart, oo_mcp_status};
 use commands::opencode_router::{
     opencodeRouter_config_set, opencodeRouter_info, opencodeRouter_start, opencodeRouter_status,
     opencodeRouter_stop,
@@ -217,7 +220,13 @@ pub fn run() {
             opencode_mcp_auth,
             scheduler_list_jobs,
             scheduler_delete_job,
-            set_window_decorations
+            set_window_decorations,
+            ollama_status,
+            ollama_list_models,
+            ollama_pull_model,
+            oo_mcp_status,
+            oo_mcp_restart,
+            oo_bootstrap
         ])
         .build(tauri::generate_context!())
         .expect("error while building OpenWork");
