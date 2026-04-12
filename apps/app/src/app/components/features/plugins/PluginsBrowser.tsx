@@ -123,8 +123,21 @@ export default function PluginsBrowser() {
       </header>
 
       <Show when={notice()}>
-        <div class="rounded-md border border-amber-7/30 bg-amber-7/10 p-2 text-xs text-amber-11">
-          {notice()}
+        <div class="flex items-center justify-between gap-2 rounded-md border border-amber-7/30 bg-amber-7/10 p-2 text-xs text-amber-11">
+          <span>{notice()}</span>
+          <button
+            class="rounded-md bg-amber-11 px-2 py-1 text-[11px] font-semibold text-white hover:bg-amber-12"
+            onClick={async () => {
+              try {
+                await invoke("engine_restart");
+                setNotice("OpenCode restarted; plugin changes are now active.");
+              } catch (err) {
+                setNotice(`restart failed: ${String(err)}`);
+              }
+            }}
+          >
+            Restart OpenCode
+          </button>
         </div>
       </Show>
 

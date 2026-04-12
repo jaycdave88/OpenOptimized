@@ -30,6 +30,10 @@ import ComposerNotice, {
     type ComposerNotice as ComposerNoticeData,
 } from "./composer-notice";
 import { useConnections } from "../../connections/provider";
+// OpenOptimized: Chat / Plan / Review / Research switcher
+import OOModeSwitcher, {
+    type ChatMode as OOChatMode,
+} from "../features/mode/ModeSwitcher";
 
 import type {
     ComposerAttachment,
@@ -101,6 +105,10 @@ type ComposerProps = {
     skills: SkillCard[];
     listCommands: () => Promise<SlashCommandOption[]>;
     onOpenSettings: (section: ToolMenuSection) => void;
+    // OpenOptimized: optional mode switcher (Chat / Plan / Review / Research).
+    // If omitted, the switcher is hidden and the composer behaves as upstream.
+    mode?: OOChatMode;
+    onModeChange?: (next: OOChatMode) => void;
 };
 
 const FLUSH_PROMPT_EVENT = "openwork:flushPromptDraft";
@@ -1892,6 +1900,15 @@ export default function Composer(props: ComposerProps) {
             style={{ contain: "layout style" }}
         >
             <div class="max-w-[800px] mx-auto">
+                {/* OpenOptimized: ModeSwitcher above the composer card. Read/write via props.mode */}
+                <Show when={props.mode && props.onModeChange}>
+                    <div class="mb-2 flex justify-end">
+                        <OOModeSwitcher
+                            mode={props.mode!}
+                            onChange={props.onModeChange!}
+                        />
+                    </div>
+                </Show>
                 <div
                     class={`bg-dls-surface border border-dls-border rounded-[24px] overflow-visible transition-all relative group/input ${
                         mentionOpen() || slashOpen()

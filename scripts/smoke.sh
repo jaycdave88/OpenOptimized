@@ -74,12 +74,12 @@ count=$(find "${ROOT}/vendor/agency-agents" -name "*.md" -not -path "*/.git/*" -
 if [[ "${count}" -gt 100 ]]; then pass "vendor/agency-agents personas: ${count}"; else fail "agency-agents too small (got ${count})"; fi
 
 echo "==> Critical files"
-for f in LICENSE LICENSES.md UPSTREAM.md README.md CONTRIBUTING.md CHANGELOG.md resources/opencode.defaults.json resources/opencode-plugins.json resources/flash-moe/install.sh resources/microfish/install.sh resources/microfish/launch.sh scripts/build-mac.sh scripts/build-mcp-bins.sh scripts/stage-python-sidecars.sh scripts/upstream-diff.sh scripts/fetch-mcp-bins.ts scripts/bootstrap-python-sidecars.sh .github/workflows/oo-smoke.yml apps/desktop/src-tauri/src/commands/ollama.rs apps/desktop/src-tauri/src/commands/oo_mcp.rs apps/desktop/src-tauri/src/commands/oo_bootstrap.rs apps/desktop/src-tauri/src/commands/oo_extras.rs; do
+for f in LICENSE LICENSES.md UPSTREAM.md README.md CONTRIBUTING.md CHANGELOG.md TROUBLESHOOTING.md QA-CHECKLIST.md resources/opencode.defaults.json resources/opencode-plugins.json resources/flash-moe/install.sh resources/microfish/install.sh resources/microfish/launch.sh scripts/build-mac.sh scripts/build-mcp-bins.sh scripts/stage-python-sidecars.sh scripts/upstream-diff.sh scripts/fetch-mcp-bins.ts scripts/bootstrap-python-sidecars.sh .github/workflows/oo-smoke.yml apps/desktop/src-tauri/src/commands/ollama.rs apps/desktop/src-tauri/src/commands/oo_mcp.rs apps/desktop/src-tauri/src/commands/oo_bootstrap.rs apps/desktop/src-tauri/src/commands/oo_extras.rs apps/desktop/src-tauri/src/commands/oo_system.rs apps/oo-supervisor/script/build.ts; do
   if [[ -f "${ROOT}/${f}" ]]; then pass "${f}"; else fail "missing ${f}"; fi
 done
 
 echo "==> Tauri commands wired in invoke_handler"
-for cmd in ollama_status ollama_list_models ollama_pull_model oo_mcp_status oo_mcp_restart oo_bootstrap flash_moe_status flash_moe_install microfish_status microfish_install microfish_launch oo_plugins_list oo_plugin_installed_list oo_plugin_install oo_plugin_uninstall agency_agents_list agency_agents_install; do
+for cmd in ollama_status ollama_list_models ollama_pull_model oo_mcp_status oo_mcp_restart oo_mcp_boot oo_bootstrap flash_moe_status flash_moe_install microfish_status microfish_install microfish_launch oo_plugins_list oo_plugin_installed_list oo_plugin_install oo_plugin_uninstall agency_agents_list agency_agents_install oo_system_check; do
   if grep -q "${cmd}" "${ROOT}/apps/desktop/src-tauri/src/lib.rs"; then pass "invoke_handler ${cmd}"; else fail "${cmd} not in lib.rs"; fi
 done
 

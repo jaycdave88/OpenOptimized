@@ -38,30 +38,55 @@ emit "{\"type\":\"status\",\"stage\":\"preflight\",\"arch\":\"${arch}\",\"os\":\
 
 mkdir -p "${TARGET}"
 
-# Phase 4 placeholder: the real install flow fetches a tagged release
-# artifact from the Flash-MoE repo. Until upstream publishes binaries, we
-# clone the repo at the pinned ref so the directory layout is ready.
 emit "{\"type\":\"status\",\"stage\":\"fetch\",\"ref\":\"${PINNED_REF}\"}"
-if command -v git >/dev/null; then
-  rm -rf "${TARGET}/repo"
-  git clone --depth=1 --branch "${PINNED_REF}" "${REPO_URL}" "${TARGET}/repo" >/dev/null 2>&1 || {
-    err "fetch" "git clone failed; network or ref invalid."
-    exit 3
-  }
-else
-  err "fetch" "git is not installed."
+if ! command -v git >/dev/null; then
+  err "fetch" "git is not installed. Run: xcode-select --install"
+  exit 3
+fi
+rm -rf "${TARGET}/repo"
+if ! git clone --depth=1 --branch "${PINNED_REF}" "${REPO_URL}" "${TARGET}/repo" >/dev/null 2>&1; then
+  err "fetch" "git clone failed; check network or ref."
   exit 3
 fi
 
-# Write a marker file. Tauri `flash_moe_status` uses it to decide whether
-# the install is complete.
+# Attempt to build the native binary if the repo has a Makefile or an
+# Xcode project. Flash-MoE typically ships an Objective-C/Metal build
+# that produces a `flash-moe` binary under repo/build/.
+cd "${TARGET}/repo"
+BUILD_OK=0
+if [[ -f "Makefile" ]]; then
+  emit "{\"type\":\"status\",\"stage\":\"make\"}"
+  if make >"${TARGET}/build.log" 2>&1; then
+    BUILD_OK=1
+  else
+    emit "{\"type\":\"warn\",\"stage\":\"make\",\"message\":\"make failed; see ${TARGET}/build.log\"}"
+  fi
+elif [[ -f "build.sh" ]]; then
+  emit "{\"type\":\"status\",\"stage\":\"build.sh\"}"
+  if bash build.sh >"${TARGET}/build.log" 2>&1; then
+    BUILD_OK=1
+  else
+    emit "{\"type\":\"warn\",\"stage\":\"build.sh\",\"message\":\"build.sh failed; see ${TARGET}/build.log\"}"
+  fi
+else
+  emit "{\"type\":\"info\",\"stage\":\"build\",\"message\":\"no Makefile or build.sh — review repo README for manual build steps\"}"
+fi
+
+# Weights are large and out-of-scope for this installer. If the repo has
+# a `scripts/download-weights.sh`, surface it as a follow-up the user
+# must run explicitly (don't auto-download multi-GB files).
+if [[ -f "scripts/download-weights.sh" ]]; then
+  emit "{\"type\":\"info\",\"stage\":\"weights\",\"message\":\"run scripts/download-weights.sh from ${TARGET}/repo when ready to fetch model weights\"}"
+fi
+
 cat > "${TARGET}/INSTALLED.json" <<JSON
 {
   "source": "${REPO_URL}",
   "ref": "${PINNED_REF}",
   "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "target": "${TARGET}"
+  "target": "${TARGET}",
+  "build_succeeded": ${BUILD_OK}
 }
 JSON
 
-emit "{\"type\":\"done\",\"target\":\"${TARGET}\"}"
+emit "{\"type\":\"done\",\"target\":\"${TARGET}\",\"build_succeeded\":${BUILD_OK}}"

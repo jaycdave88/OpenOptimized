@@ -60,6 +60,21 @@ for d in vendor/agency-agents/*/; do
   cp -R "${d}"*.md "resources/agency-agents/${cat}/" 2>/dev/null || true
 done
 
+echo "==> Compiling oo-supervisor sidecar binary"
+pnpm --filter oo-supervisor run build:bin
+
+echo "==> Running OpenWork's sidecar build chain (opencode, openwork-server, orchestrator, opencode-router, chrome-devtools-mcp)"
+# This produces every other sidecar declared in tauri.conf.json externalBin
+# by invoking each workspace's build:bin:bundled / prepare-sidecar flow.
+pnpm --filter openwork-orchestrator run build:sidecars
+
+echo "==> Staging sidecars into apps/desktop/src-tauri/sidecars/"
+node apps/desktop/scripts/prepare-sidecar.mjs
+# Copy our own oo-supervisor next to the OpenWork sidecars.
+mkdir -p apps/desktop/src-tauri/sidecars
+cp apps/oo-supervisor/dist/bin/oo-supervisor apps/desktop/src-tauri/sidecars/oo-supervisor 2>/dev/null || \
+  echo "!! oo-supervisor build output missing — Tauri bundle will skip this externalBin"
+
 echo "==> Building UI"
 pnpm build:ui
 
