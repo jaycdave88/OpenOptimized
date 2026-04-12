@@ -70,10 +70,19 @@ pnpm --filter openwork-orchestrator run build:sidecars
 
 echo "==> Staging sidecars into apps/desktop/src-tauri/sidecars/"
 node apps/desktop/scripts/prepare-sidecar.mjs
-# Copy our own oo-supervisor next to the OpenWork sidecars.
+# Copy our own oo-supervisor next to the OpenWork sidecars. Tauri's
+# externalBin convention requires the file be named
+# `<base>-<target-triple>`, matching the `--target` passed to tauri build.
 mkdir -p apps/desktop/src-tauri/sidecars
-cp apps/oo-supervisor/dist/bin/oo-supervisor apps/desktop/src-tauri/sidecars/oo-supervisor 2>/dev/null || \
-  echo "!! oo-supervisor build output missing — Tauri bundle will skip this externalBin"
+if [[ -f apps/oo-supervisor/dist/bin/oo-supervisor ]]; then
+  cp apps/oo-supervisor/dist/bin/oo-supervisor \
+     apps/desktop/src-tauri/sidecars/oo-supervisor-aarch64-apple-darwin
+  chmod +x apps/desktop/src-tauri/sidecars/oo-supervisor-aarch64-apple-darwin
+  echo "    staged sidecars/oo-supervisor-aarch64-apple-darwin"
+else
+  echo "!! oo-supervisor build output missing at apps/oo-supervisor/dist/bin/oo-supervisor" >&2
+  exit 1
+fi
 
 echo "==> Building UI"
 pnpm build:ui
