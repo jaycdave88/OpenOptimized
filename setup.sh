@@ -295,17 +295,30 @@ elif [[ -n "${MLX_CONFIG_RESOLVED}" || "${WITH_MLX}" == "1" ]]; then
   else
     info "config: ${MLX_CONFIG_RESOLVED}"
 
-    # Make sure mlx_lm is available. Don't force pip install; just tell the
-    # user what to do if it's missing.
-    if ! command -v mlx_lm.server >/dev/null; then
-      if confirm "mlx_lm.server not found. Install mlx-lm via pip?"; then
-        pip3 install --quiet --upgrade pip
-        pip3 install --quiet mlx-lm 2>&1 | tee -a "${LOG}" >/dev/null
-        ok "mlx-lm installed"
+    # mlx-lm MUST live in Python 3.12+. macOS ships Python 3.9 and makes it
+    # the default `pip3`, but mlx-lm + transformers use features that
+    # silently break there (TokenizersBackend missing, transformers list-vs-dict
+    # regression). Always target Python 3.12 explicitly.
+    if ! python3.12 -c "import mlx_lm" >/dev/null 2>&1; then
+      if confirm "mlx-lm not installed in Python 3.12. Install it there?"; then
+        python3.12 -m pip install --user --quiet --upgrade pip 2>&1 | tee -a "${LOG}" >/dev/null
+        python3.12 -m pip install --user --quiet mlx-lm 2>&1 | tee -a "${LOG}" >/dev/null
+        ok "mlx-lm installed into Python 3.12"
       else
-        skip "MLX servers (mlx-lm missing)"
+        skip "MLX servers (mlx-lm not available in Python 3.12)"
         MLX_CONFIG_RESOLVED=""
       fi
+    else
+      ok "mlx-lm present in Python 3.12"
+    fi
+
+    # Heads-up if a stale Python 3.9 install of mlx-lm exists — it's what
+    # will get picked up by the bare `mlx_lm.server` command and break
+    # model loads.
+    if [[ -f "${HOME}/Library/Python/3.9/bin/mlx_lm.server" ]]; then
+      warn "detected Python 3.9 install at ~/Library/Python/3.9/bin/mlx_lm.server"
+      info "we will invoke mlx_lm.server via 'python3.12 -m mlx_lm.server' to avoid it"
+      info "to remove the 3.9 copy: python3 -m pip uninstall -y mlx-lm transformers"
     fi
 
     # jq is required by both scripts; it's tiny and universally useful.

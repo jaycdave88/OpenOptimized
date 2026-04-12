@@ -53,11 +53,23 @@ EOF
   exit 2
 fi
 
-if ! command -v mlx_lm.server >/dev/null; then
+# Pick the best Python: require Python 3.12 if available, since
+# mlx-lm + transformers expect 3.10+ and silently fail under macOS's
+# system Python 3.9 (TokenizersBackend errors, etc.).
+MLX_PYTHON=""
+if command -v python3.12 >/dev/null && python3.12 -c "import mlx_lm" >/dev/null 2>&1; then
+  MLX_PYTHON="python3.12"
+elif command -v python3 >/dev/null && python3 -c "import sys,mlx_lm; sys.exit(0 if sys.version_info >= (3,10) else 1)" >/dev/null 2>&1; then
+  MLX_PYTHON="python3"
+fi
+
+if [[ -z "${MLX_PYTHON}" ]]; then
   cat >&2 <<EOF
-!! mlx_lm.server not found on PATH.
-   Install: pip install mlx-lm
-   Or: pipx install mlx-lm
+!! mlx-lm not installed in Python 3.10+.
+   macOS ships Python 3.9, which mlx-lm does not support reliably.
+   Install into Python 3.12 (from Homebrew):
+     python3.12 -m pip install --user mlx-lm
+   Then re-run this script.
 EOF
   exit 3
 fi
@@ -76,7 +88,7 @@ if [[ "${COUNT}" -eq 0 ]]; then
   exit 0
 fi
 
-echo "[start-mlx] spawning ${COUNT} mlx_lm.server process(es) on ${HOST}"
+echo "[start-mlx] spawning ${COUNT} mlx_lm.server process(es) on ${HOST} (via ${MLX_PYTHON})"
 
 wait_healthy() {
   local url="$1" model_id="$2" timeout="$3"
@@ -127,7 +139,7 @@ for row in "${_rows[@]}"; do
   fi
 
   echo "  ${id}: starting on ${url} (model: ${path}; health timeout ${timeout}s)"
-  nohup mlx_lm.server \
+  nohup "${MLX_PYTHON}" -m mlx_lm.server \
     --model "${path}" \
     --host "${HOST}" \
     --port "${port}" \

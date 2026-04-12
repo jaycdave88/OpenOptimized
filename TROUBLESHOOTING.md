@@ -115,16 +115,41 @@ engine-restart command or relaunch the app.
 
 ## Local MLX models
 
+### Logs show `TokenizersBackend does not exist` or `'list' object has no attribute 'keys'`
+
+Both symptoms mean mlx-lm was installed into **Python 3.9** (Apple's
+system Python), which doesn't meet the version requirements of current
+`mlx-lm` / `transformers`. Look at the log path — if it starts with
+`/Users/<you>/Library/Python/3.9/...`, you're hitting this.
+
+Fix: install mlx-lm into Python 3.12 (from Homebrew) and remove the 3.9
+copy so it doesn't shadow the 3.12 install.
+
+```bash
+# Remove the 3.9 install (it's what PATH resolves to for bare `mlx_lm.server`)
+python3 -m pip uninstall -y mlx-lm transformers tokenizers
+
+# Install into Python 3.12 specifically
+python3.12 -m pip install --user mlx-lm
+
+# Re-run
+./scripts/start-mlx.sh
+```
+
+`setup.sh` and `start-mlx.sh` now invoke the server as
+`python3.12 -m mlx_lm.server` explicitly, so they never pick up a 3.9
+install — but if you had already run `pip3 install mlx-lm` before
+pulling these fixes, the 3.9 install is still on disk and may get in
+your way for manual debugging.
+
 ### `mlx_lm.server: command not found`
 
 ```bash
-pip3 install --upgrade mlx-lm
-# or, in a venv / with pipx:
-pipx install mlx-lm
+python3.12 -m pip install --user mlx-lm
 ```
 
-On Apple Silicon with Python 3.12 installed by `setup.sh`, `pip3 install mlx-lm`
-should work without further dance.
+Do **not** use `pip3` or `pip` — those resolve to Python 3.9 on macOS
+and will silently install a broken copy.
 
 ### `start-mlx.sh`: "path does not exist"
 
