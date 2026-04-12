@@ -39,8 +39,11 @@ pnpm install --frozen-lockfile
 echo "==> Ensuring both Apple targets are installed"
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
-echo "==> Fetching MCP binaries (arm64 + x86_64)"
-pnpm fetch:mcp
+echo "==> Initializing vendor/ submodules (MCP sources)"
+git submodule update --init --depth=1 -- vendor
+
+echo "==> Staging MCP servers from vendor/ sources"
+./scripts/build-mcp-bins.sh
 
 echo "==> Building UI"
 pnpm build:ui

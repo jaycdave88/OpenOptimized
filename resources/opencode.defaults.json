@@ -64,22 +64,22 @@
   "mcp": {
     "cocoindex": {
       "type": "local",
-      "command": ["__RESOURCE__/mcp-bin/cocoindex"],
+      "command": ["bash", "__RESOURCE__/mcp-bin/cocoindex/run.sh"],
       "enabled": true
     },
     "mempalace": {
       "type": "local",
-      "command": ["__RESOURCE__/mcp-bin/mempalace"],
+      "command": ["bash", "__RESOURCE__/mcp-bin/mempalace/run.sh"],
       "enabled": true
     },
     "graphify": {
       "type": "local",
-      "command": ["__RESOURCE__/mcp-bin/graphify"],
+      "command": ["bash", "__RESOURCE__/mcp-bin/graphify/run.sh"],
       "enabled": true
     },
     "context-mode": {
       "type": "local",
-      "command": ["__RESOURCE__/mcp-bin/context-mode"],
+      "command": ["bash", "__RESOURCE__/mcp-bin/context-mode/run.sh"],
       "enabled": true
     }
   }

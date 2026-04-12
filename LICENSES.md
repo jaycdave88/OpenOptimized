@@ -60,8 +60,13 @@ MicroFish-En accept AGPL-3.0 for that installation independently.
 
 ## Reproducibility
 
-`scripts/fetch-mcp-bins.ts` records the pinned commit SHA and SHA-256
-checksum of every bundled binary. The manifest is committed; bumping a pin
-is a reviewable change. Install scripts for Flash-MoE and MicroFish-En
-also respect pinned refs via the `FLASH_MOE_REF` and `MICROFISH_REF`
-environment variables.
+The four bundled MCPs are **git submodules** under `vendor/`. Every
+release of OpenOptimized pins them at specific commit SHAs (see
+`UPSTREAM.md`). Submodule updates are reviewable commits; the source staged
+into `resources/mcp-bin/<name>/source/` is regenerated from those pins by
+`scripts/build-mcp-bins.sh` on every build.
+
+Install scripts for Flash-MoE and MicroFish-En respect pinned refs via the
+`FLASH_MOE_REF` and `MICROFISH_REF` environment variables. The legacy
+`scripts/fetch-mcp-bins.ts` is a deprecated shim that now delegates to
+`scripts/build-mcp-bins.sh`.

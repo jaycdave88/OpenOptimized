@@ -24,8 +24,33 @@ fail() { printf "  \033[31mFAIL\033[0m  %s\n" "$1"; exit 1; }
 skip() { printf "  \033[33mSKIP\033[0m  %s\n" "$1"; }
 
 echo "==> Repo structure"
-for d in apps/app apps/desktop apps/orchestrator apps/oo-supervisor packages/@oo/mcp-supervisor packages/@oo/ollama-client packages/@oo/config packages/@oo/research resources/agents resources/flash-moe resources/microfish resources/deerflow resources/autoresearch; do
+for d in apps/app apps/desktop apps/orchestrator apps/oo-supervisor packages/@oo/mcp-supervisor packages/@oo/ollama-client packages/@oo/config packages/@oo/research resources/agents resources/flash-moe resources/microfish resources/deerflow resources/autoresearch vendor/cocoindex-code vendor/mempalace vendor/graphify vendor/context-mode; do
   if [[ -d "${ROOT}/${d}" ]]; then pass "${d}"; else fail "missing ${d}"; fi
+done
+
+echo "==> Submodule pins (vendor/)"
+for repo in cocoindex-code mempalace graphify context-mode; do
+  if git -C "${ROOT}/vendor/${repo}" rev-parse HEAD >/dev/null 2>&1; then
+    pass "vendor/${repo} at $(git -C "${ROOT}/vendor/${repo}" rev-parse --short HEAD)"
+  else
+    fail "vendor/${repo} not initialized"
+  fi
+done
+
+echo "==> build-mcp-bins staging"
+if bash "${ROOT}/scripts/build-mcp-bins.sh" >/tmp/smoke-build.log 2>&1; then
+  pass "build-mcp-bins.sh --all"
+else
+  fail "build-mcp-bins.sh failed (see /tmp/smoke-build.log)"
+fi
+for name in cocoindex mempalace graphify context-mode; do
+  for f in source run.sh setup.sh MANIFEST.json; do
+    if [[ -e "${ROOT}/resources/mcp-bin/${name}/${f}" ]]; then
+      pass "mcp-bin/${name}/${f}"
+    else
+      fail "missing mcp-bin/${name}/${f}"
+    fi
+  done
 done
 
 echo "==> Critical files"

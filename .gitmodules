@@ -1,0 +1,12 @@
+[submodule "vendor/cocoindex-code"]
+	path = vendor/cocoindex-code
+	url = https://github.com/jaycdave88/cocoindex-code.git
+[submodule "vendor/mempalace"]
+	path = vendor/mempalace
+	url = https://github.com/jaycdave88/mempalace.git
+[submodule "vendor/graphify"]
+	path = vendor/graphify
+	url = https://github.com/jaycdave88/graphify.git
+[submodule "vendor/context-mode"]
+	path = vendor/context-mode
+	url = https://github.com/jaycdave88/context-mode.git

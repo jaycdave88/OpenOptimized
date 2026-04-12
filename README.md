@@ -26,10 +26,10 @@ Track the staged plan in `/root/.claude/plans/synthetic-napping-lampson.md`
 
 | Repo | Role | Delivery |
 |------|------|----------|
-| [cocoindex-code](https://github.com/jaycdave88/cocoindex-code) | AST-aware semantic code search | **Bundled MCP** — registered in `opencode.defaults.json`, supervised by `apps/oo-supervisor` |
-| [mempalace](https://github.com/jaycdave88/mempalace) | Long-term persistent memory | **Bundled MCP** — registered in `opencode.defaults.json`, 19 tools, local-first |
-| [graphify](https://github.com/jaycdave88/graphify) | Code/doc knowledge graph | **Bundled MCP** — registered in `opencode.defaults.json` |
-| [context-mode](https://github.com/jaycdave88/context-mode) | Context window pruning | **Bundled MCP** (ELv2, desktop-only) — registered in `opencode.defaults.json` |
+| [cocoindex-code](https://github.com/jaycdave88/cocoindex-code) | AST-aware semantic code search | **Bundled MCP** (`vendor/cocoindex-code` submodule, built from source) |
+| [mempalace](https://github.com/jaycdave88/mempalace) | Long-term persistent memory | **Bundled MCP** (`vendor/mempalace` submodule, 19 tools, local-first) |
+| [graphify](https://github.com/jaycdave88/graphify) | Code/doc knowledge graph | **Bundled MCP** (`vendor/graphify` submodule) |
+| [context-mode](https://github.com/jaycdave88/context-mode) | Context window pruning | **Bundled MCP** (`vendor/context-mode` submodule, ELv2, desktop-only) |
 | [agency-agents](https://github.com/jaycdave88/agency-agents) | Pre-built agent personas | **Seed personas** — curated subset copied into `.opencode/agents/` on first run; `AgentLibrary` tab manages them |
 | [deer-flow](https://github.com/jaycdave88/deer-flow) | Multi-agent orchestration | **Python sidecar** — installed into a venv on first `Plan` mode use via `scripts/bootstrap-python-sidecars.sh` |
 | [autoresearch](https://github.com/jaycdave88/autoresearch) | Autonomous research loop | **Python sidecar** — installed into a venv on first `Research` mode use; wrapped by `@oo/research` |
@@ -57,6 +57,11 @@ Track the staged plan in `/root/.claude/plans/synthetic-napping-lampson.md`
 
 ```
 /openOptimized
+  vendor/                           git submodules — MCP sources built from
+    cocoindex-code/                 source by scripts/build-mcp-bins.sh
+    mempalace/
+    graphify/
+    context-mode/
   apps/                             forked from openwork (desktop, app, orchestrator, server, ...)
   packages/
     @openwork/*                     kept from upstream
