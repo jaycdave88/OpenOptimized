@@ -24,11 +24,50 @@
 
 set -euo pipefail
 
+ASSUME_YES=0
+NO_RELAUNCH=0
+for arg in "$@"; do
+  case "$arg" in
+    --yes|-y)       ASSUME_YES=1 ;;
+    --no-relaunch)  NO_RELAUNCH=1 ;;
+    -h|--help)
+      sed -n '1,25p' "$0"
+      exit 0
+      ;;
+    *) echo "unknown flag: $arg" >&2; exit 2 ;;
+  esac
+done
+
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 USER_DATA_DIR="${OO_USER_DATA_DIR:-${HOME}/Library/Application Support/dev.openoptimized.app}"
 OPENCODE_JSON="${USER_DATA_DIR}/opencode.json"
 DEFAULTS="${ROOT}/resources/opencode.defaults.json"
+
+# Helper: confirm unless --yes was passed.
+confirm() {
+  local prompt="$1"
+  if [[ "${ASSUME_YES}" == "1" ]]; then return 0; fi
+  read -r -p "${prompt} [Y/n] " reply
+  [[ -z "${reply}" || "${reply}" =~ ^[Yy]$ ]]
+}
+
+# Helper: detect a running OpenOptimized.app. Tauri bundles it as
+# OpenWork-Dev (see apps/desktop/src-tauri/Cargo.toml default-run); we
+# match on either the bundle name or the binary name.
+detect_running_app() {
+  pgrep -f "OpenOptimized.app/Contents/MacOS/OpenWork-Dev" 2>/dev/null | head -1
+}
+
+# Helper: find the built .app bundle on disk.
+find_app_bundle() {
+  local candidate="${ROOT}/apps/desktop/src-tauri/target/release/bundle/macos/OpenOptimized.app"
+  if [[ -d "${candidate}" ]]; then
+    printf '%s' "${candidate}"
+    return 0
+  fi
+  return 1
+}
 
 if [[ ! -f "${DEFAULTS}" ]]; then
   echo "!! ${DEFAULTS} not found; run from the repo root" >&2
@@ -81,7 +120,8 @@ rm -f "${DEFAULTS_RESOLVED}"
 # user's actual install (the merge would otherwise include the default
 # demo model list). Safe no-op if Ollama isn't running.
 if [[ -x "${ROOT}/scripts/sync-ollama-models.sh" ]]; then
-  OO_USER_DATA_DIR="${USER_DATA_DIR}" "${ROOT}/scripts/sync-ollama-models.sh" 2>&1 | sed 's/^/  /' || true
+  OO_USER_DATA_DIR="${USER_DATA_DIR}" OO_SYNC_NO_RELAUNCH=1 \
+    "${ROOT}/scripts/sync-ollama-models.sh" 2>&1 | sed 's/^/  /' || true
 fi
 
 # Report what changed.
@@ -97,4 +137,50 @@ echo ""
 echo "MCP servers now configured:"
 jq -r '.mcp // {} | keys[]' "${OPENCODE_JSON}" | sed 's/^/  - /'
 echo ""
-echo "Next: restart OpenOptimized.app so OpenCode picks up the new mcp block."
+
+# -----------------------------------------------------------------------
+# Offer to relaunch OpenOptimized.app so OpenCode picks up the new file.
+# -----------------------------------------------------------------------
+
+if [[ "${NO_RELAUNCH}" == "1" ]]; then
+  echo "[restore] --no-relaunch set; restart OpenOptimized manually to activate."
+  exit 0
+fi
+
+running_pid="$(detect_running_app)"
+app_bundle=""
+if app_bundle="$(find_app_bundle)"; then
+  :
+fi
+
+if [[ -n "${running_pid}" ]]; then
+  if confirm "OpenOptimized is running (pid ${running_pid}). Relaunch it now to pick up the new opencode.json?"; then
+    # Graceful quit first (via AppleScript), SIGKILL as a fallback after
+    # a couple of seconds if it's still alive.
+    osascript -e 'tell application "OpenOptimized" to quit' 2>/dev/null || \
+      kill -TERM "${running_pid}" 2>/dev/null || true
+    for _ in 1 2 3 4 5; do
+      if ! kill -0 "${running_pid}" 2>/dev/null; then break; fi
+      sleep 1
+    done
+    if kill -0 "${running_pid}" 2>/dev/null; then
+      echo "[restore] app didn't exit cleanly; sending SIGKILL"
+      kill -KILL "${running_pid}" 2>/dev/null || true
+      sleep 1
+    fi
+    if [[ -n "${app_bundle}" ]]; then
+      echo "[restore] launching ${app_bundle}"
+      open "${app_bundle}"
+    else
+      echo "[restore] could not locate OpenOptimized.app; build with ./setup.sh or launch manually"
+    fi
+  else
+    echo "[restore] left the running app alone; restart it manually to activate."
+  fi
+elif [[ -n "${app_bundle}" ]]; then
+  if confirm "OpenOptimized.app is built but not running. Launch it now?"; then
+    open "${app_bundle}"
+  fi
+else
+  echo "[restore] no running app and no .app bundle found; run ./setup.sh to build first."
+fi

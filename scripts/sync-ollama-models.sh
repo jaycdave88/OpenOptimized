@@ -96,3 +96,30 @@ mv "${tmp}" "${OPENCODE_JSON}"
 
 echo "[sync-ollama] wrote ${#model_names[@]} model(s) to ollama provider in ${OPENCODE_JSON}:"
 printf '  %s\n' "${model_names[@]}"
+
+# If OpenOptimized is running, it cached the previous model list on its
+# last read of opencode.json. Offer a relaunch so the new list shows up
+# immediately. Skip if we're being called from another script (e.g.
+# restore-opencode-defaults.sh) or under --no-relaunch.
+if [[ "${OO_SYNC_NO_RELAUNCH:-0}" == "1" ]]; then
+  exit 0
+fi
+
+running_pid="$(pgrep -f 'OpenOptimized.app/Contents/MacOS/OpenWork-Dev' 2>/dev/null | head -1 || true)"
+if [[ -z "${running_pid}" ]]; then
+  exit 0
+fi
+
+read -r -p "[sync-ollama] OpenOptimized is running. Relaunch it to pick up the new model list? [y/N] " reply
+if [[ "${reply}" =~ ^[Yy]$ ]]; then
+  osascript -e 'tell application "OpenOptimized" to quit' 2>/dev/null || \
+    kill -TERM "${running_pid}" 2>/dev/null || true
+  for _ in 1 2 3 4 5; do
+    kill -0 "${running_pid}" 2>/dev/null || break
+    sleep 1
+  done
+  app_candidate="$(cd "$(dirname "$0")/.." && pwd)/apps/desktop/src-tauri/target/release/bundle/macos/OpenOptimized.app"
+  if [[ -d "${app_candidate}" ]]; then
+    open "${app_candidate}"
+  fi
+fi
