@@ -90,9 +90,10 @@ RESOURCES_DIR="${ROOT}/resources"
 DEFAULTS_RESOLVED="$(mktemp)"
 sed "s|__RESOURCE__|${RESOURCES_DIR}|g" "${DEFAULTS}" > "${DEFAULTS_RESOLVED}"
 
-# Strip non-standard $schema / $comment fields so the resulting
-# opencode.json stays valid for OpenCode's schema checker.
-jq 'del(.["$schema"], .["$comment"])' "${DEFAULTS_RESOLVED}" > "${DEFAULTS_RESOLVED}.clean"
+# Strip non-standard $schema / $comment fields AT ANY NESTING so the
+# resulting opencode.json stays valid for OpenCode's schema checker.
+jq 'walk(if type == "object" then with_entries(select(.key != "$schema" and .key != "$comment")) else . end)' \
+  "${DEFAULTS_RESOLVED}" > "${DEFAULTS_RESOLVED}.clean"
 mv "${DEFAULTS_RESOLVED}.clean" "${DEFAULTS_RESOLVED}"
 
 if [[ ! -f "${OPENCODE_JSON}" ]]; then
@@ -107,8 +108,9 @@ BACKUP="${OPENCODE_JSON}.bak.$(date +%s)"
 cp "${OPENCODE_JSON}" "${BACKUP}"
 
 # Strip $schema/$comment from user's too, in case they leaked in from a
-# previous run.
-jq 'del(.["$schema"], .["$comment"])' "${OPENCODE_JSON}" > "${OPENCODE_JSON}.clean"
+# previous run — at any nesting depth.
+jq 'walk(if type == "object" then with_entries(select(.key != "$schema" and .key != "$comment")) else . end)' \
+  "${OPENCODE_JSON}" > "${OPENCODE_JSON}.clean"
 mv "${OPENCODE_JSON}.clean" "${OPENCODE_JSON}"
 
 # Deep-merge. Right side wins -> user values preserved.

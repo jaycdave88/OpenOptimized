@@ -74,22 +74,49 @@ models_json=$(printf '%s\n' "${model_names[@]}" | jq -R . | jq -s '
   ] | from_entries
 ')
 
-# Merge into opencode.json. We write the full models map (replacing whatever
-# was there) but keep the rest of the ollama provider block untouched.
+# Pick a sensible default model: first installed coding-oriented one,
+# falling back to the first entry. Prevents opencode.json's top-level
+# `.model` from pointing at a non-existent model like qwen2.5-coder:14b
+# (the factory default) when the user doesn't have that one.
+default_model="${model_names[0]}"
+for name in "${model_names[@]}"; do
+  case "$name" in
+    *coder*|*coding*|*code*|*qwen*|*deepseek*)
+      default_model="$name"
+      break
+      ;;
+  esac
+done
+installed_keys_s=" $(printf '%s ' "${model_names[@]}")"
+
+# Merge into opencode.json. We write the full models map (replacing
+# whatever was there), keep the rest of the ollama provider block
+# untouched, and fix up `.model` / `.small_model` if they point at an
+# absent model.
 tmp="$(mktemp)"
-jq --argjson models "${models_json}" '
-  if (.provider // {}) | has("ollama") then
-    .provider.ollama.models = $models
-  else
-    .provider = ((.provider // {}) + {
-      ollama: {
-        npm: "@ai-sdk/openai-compatible",
-        name: "Ollama (local)",
-        options: { baseURL: "http://127.0.0.1:11434/v1" },
-        models: $models
-      }
-    })
-  end
+jq --argjson models "${models_json}" \
+   --arg default_model "ollama/${default_model}" \
+   --arg installed_keys "${installed_keys_s}" '
+  (if (.provider // {}) | has("ollama") then
+     .provider.ollama.models = $models
+   else
+     .provider = ((.provider // {}) + {
+       ollama: {
+         npm: "@ai-sdk/openai-compatible",
+         name: "Ollama (local)",
+         options: { baseURL: "http://127.0.0.1:11434/v1" },
+         models: $models
+       }
+     })
+   end)
+  | (if (.model // "") | startswith("ollama/") then
+       if ($installed_keys | contains(" " + (.model | sub("^ollama/"; "")) + " ")) then .
+       else .model = $default_model end
+     else . end)
+  | (if (.small_model // "") | startswith("ollama/") then
+       if ($installed_keys | contains(" " + (.small_model | sub("^ollama/"; "")) + " ")) then .
+       else .small_model = $default_model end
+     else . end)
 ' "${OPENCODE_JSON}" > "${tmp}"
 
 mv "${tmp}" "${OPENCODE_JSON}"
