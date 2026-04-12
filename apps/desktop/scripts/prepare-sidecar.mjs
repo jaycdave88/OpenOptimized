@@ -212,6 +212,27 @@ const readHeader = (filePath, length = 256) => {
   }
 };
 
+/**
+ * On macOS, Bun-compiled binaries may carry com.apple.quarantine or
+ * com.apple.provenance xattrs.  Gatekeeper/syspolicyd kills unsigned
+ * quarantined binaries with SIGKILL (exit 137) before they produce any output.
+ *
+ * This helper attempts to strip quarantine attrs and ad-hoc sign the binary.
+ * On macOS 26+ (Tahoe), the provenance attribute is sticky and codesign may
+ * reject Bun single-file executables.  The Rust sidecar-spawn code has a
+ * separate fallback that runs the TS source via `bun` in dev mode, so this
+ * function is best-effort.
+ */
+const codesignIfNeeded = (filePath) => {
+  if (process.platform !== "darwin") return;
+  try {
+    spawnSync("xattr", ["-cr", filePath], { stdio: "ignore" });
+    spawnSync("codesign", ["--force", "--sign", "-", filePath], { stdio: "ignore" });
+  } catch {
+    // Non-fatal: Rust dev-mode fallback handles this via `bun` at runtime.
+  }
+};
+
 const isStubBinary = (filePath) => {
   try {
     const stat = statSync(filePath);
@@ -326,6 +347,7 @@ if (shouldBuildOpenworkServer) {
     process.exit(buildResult.status ?? 1);
   }
 
+  codesignIfNeeded(openworkServerBuildPath);
   didBuildOpenworkServer = true;
 }
 
@@ -531,6 +553,7 @@ if (shouldBuildOpenCodeRouter) {
     process.exit(result.status ?? 1);
   }
 
+  codesignIfNeeded(opencodeRouterBuildPath);
   didBuildOpenCodeRouter = true;
 }
 
@@ -600,6 +623,7 @@ if (shouldBuildOrchestrator) {
     process.exit(result.status ?? 1);
   }
 
+  codesignIfNeeded(orchestratorBuildPath);
   didBuildOrchestrator = true;
 }
 
@@ -675,6 +699,7 @@ if (shouldBuildChromeDevtools) {
     process.exit(result.status ?? 1);
   }
 
+  codesignIfNeeded(chromeDevtoolsBuildPath);
   didBuildChromeDevtools = true;
 }
 
