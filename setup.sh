@@ -387,6 +387,22 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 6c. Merge opencode.json defaults (MCP block, flash-moe provider, etc.)
+# The in-app oo_bootstrap has intermittent trouble locating the bundled
+# opencode.defaults.json at runtime, so we do the smart-merge here too
+# where paths are unambiguous. Idempotent — deep-merge with user values
+# winning, followed by an Ollama model re-sync.
+# ---------------------------------------------------------------------------
+
+step "Restoring opencode.json defaults (MCP block, flash-moe provider)"
+if command -v jq >/dev/null; then
+  ./scripts/restore-opencode-defaults.sh 2>&1 | tee -a "${LOG}" | sed 's/^/    /'
+  ok "opencode.json merged with defaults"
+else
+  warn "jq not installed; skipping (brew install jq, then re-run setup.sh)"
+fi
+
+# ---------------------------------------------------------------------------
 # 7. Submodules
 # ---------------------------------------------------------------------------
 

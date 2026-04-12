@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+#
+# restore-opencode-defaults.sh — merge resources/opencode.defaults.json
+# into the user's opencode.json without overwriting existing user state.
+#
+# Solves: oo_bootstrap inside the app sometimes can't locate the bundled
+# opencode.defaults.json at runtime (path layout inside the .app bundle),
+# leaving the user's opencode.json missing the `mcp` block and other
+# defaults. This script does the same smart-merge from the shell, using
+# the repo's resources/opencode.defaults.json as the source of truth.
+#
+# Semantics: `jq -s '.[0] * .[1]'` does a DEEP merge where the
+# right-hand side wins on conflicts. We put defaults first, user's
+# existing JSON second — so every key the user already has is preserved,
+# and keys only present in defaults (mcp, model, small_model, flash-moe
+# provider, etc.) are added.
+#
+# Usage:
+#   ./scripts/restore-opencode-defaults.sh
+#   OO_USER_DATA_DIR=/path ./scripts/restore-opencode-defaults.sh
+#
+# After running, restart OpenOptimized so OpenCode picks up the new mcp
+# block.
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+ROOT="$(pwd)"
+USER_DATA_DIR="${OO_USER_DATA_DIR:-${HOME}/Library/Application Support/dev.openoptimized.app}"
+OPENCODE_JSON="${USER_DATA_DIR}/opencode.json"
+DEFAULTS="${ROOT}/resources/opencode.defaults.json"
+
+if [[ ! -f "${DEFAULTS}" ]]; then
+  echo "!! ${DEFAULTS} not found; run from the repo root" >&2
+  exit 2
+fi
+
+if ! command -v jq >/dev/null; then
+  echo "!! jq required (brew install jq)" >&2
+  exit 3
+fi
+
+mkdir -p "${USER_DATA_DIR}"
+
+# The MCP run.sh launchers live under resources/mcp-bin/<name>/. Their
+# absolute paths on this machine are ${ROOT}/resources/mcp-bin/<name>/run.sh.
+# Substitute that into the __RESOURCE__ placeholder so opencode.json's
+# mcp entries point at real scripts.
+RESOURCES_DIR="${ROOT}/resources"
+DEFAULTS_RESOLVED="$(mktemp)"
+sed "s|__RESOURCE__|${RESOURCES_DIR}|g" "${DEFAULTS}" > "${DEFAULTS_RESOLVED}"
+
+# Strip non-standard $schema / $comment fields so the resulting
+# opencode.json stays valid for OpenCode's schema checker.
+jq 'del(.["$schema"], .["$comment"])' "${DEFAULTS_RESOLVED}" > "${DEFAULTS_RESOLVED}.clean"
+mv "${DEFAULTS_RESOLVED}.clean" "${DEFAULTS_RESOLVED}"
+
+if [[ ! -f "${OPENCODE_JSON}" ]]; then
+  cp "${DEFAULTS_RESOLVED}" "${OPENCODE_JSON}"
+  echo "[restore] created fresh opencode.json from defaults"
+  rm -f "${DEFAULTS_RESOLVED}"
+  exit 0
+fi
+
+# Back up before touching.
+BACKUP="${OPENCODE_JSON}.bak.$(date +%s)"
+cp "${OPENCODE_JSON}" "${BACKUP}"
+
+# Strip $schema/$comment from user's too, in case they leaked in from a
+# previous run.
+jq 'del(.["$schema"], .["$comment"])' "${OPENCODE_JSON}" > "${OPENCODE_JSON}.clean"
+mv "${OPENCODE_JSON}.clean" "${OPENCODE_JSON}"
+
+# Deep-merge. Right side wins -> user values preserved.
+MERGED="$(mktemp)"
+jq -s '.[0] * .[1]' "${DEFAULTS_RESOLVED}" "${OPENCODE_JSON}" > "${MERGED}"
+mv "${MERGED}" "${OPENCODE_JSON}"
+rm -f "${DEFAULTS_RESOLVED}"
+
+# Re-sync the Ollama models list so `provider.ollama.models` matches the
+# user's actual install (the merge would otherwise include the default
+# demo model list). Safe no-op if Ollama isn't running.
+if [[ -x "${ROOT}/scripts/sync-ollama-models.sh" ]]; then
+  OO_USER_DATA_DIR="${USER_DATA_DIR}" "${ROOT}/scripts/sync-ollama-models.sh" 2>&1 | sed 's/^/  /' || true
+fi
+
+# Report what changed.
+echo "[restore] merged defaults into ${OPENCODE_JSON}"
+echo "[restore] backup: ${BACKUP}"
+echo ""
+echo "keys in merged opencode.json:"
+jq -r 'paths | select(length <= 2) | map(tostring) | join(".")' "${OPENCODE_JSON}" | sort -u | head -40
+echo ""
+echo "Providers now configured:"
+jq -r '.provider | keys[]' "${OPENCODE_JSON}" | sed 's/^/  - /'
+echo ""
+echo "MCP servers now configured:"
+jq -r '.mcp // {} | keys[]' "${OPENCODE_JSON}" | sed 's/^/  - /'
+echo ""
+echo "Next: restart OpenOptimized.app so OpenCode picks up the new mcp block."
