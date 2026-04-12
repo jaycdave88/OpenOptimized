@@ -27,7 +27,7 @@ use commands::misc::{
     app_build_info, nuke_openwork_and_opencode_config_and_exit, opencode_mcp_auth,
     reset_opencode_cache, reset_openwork_state,
 };
-use commands::ollama::{ollama_list_models, ollama_pull_model, ollama_status};
+use commands::ollama::{ollama_get_endpoint, ollama_list_models, ollama_pull_model, ollama_set_endpoint, ollama_status};
 use commands::oo_bootstrap::oo_bootstrap;
 use commands::oo_extras::{
     agency_agents_install, agency_agents_list, flash_moe_install, flash_moe_status,
@@ -233,6 +233,8 @@ pub fn run() {
             ollama_status,
             ollama_list_models,
             ollama_pull_model,
+            ollama_set_endpoint,
+            ollama_get_endpoint,
             oo_mcp_status,
             oo_mcp_restart,
             oo_mcp_boot,

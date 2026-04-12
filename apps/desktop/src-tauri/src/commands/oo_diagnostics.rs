@@ -69,7 +69,8 @@ fn redact(value: &mut Value) {
 }
 
 fn ollama_block() -> String {
-    let version = match ureq::get("http://127.0.0.1:11434/api/version").call() {
+    let base = super::ollama::get_ollama_base();
+    let version = match ureq::get(&format!("{}/api/version", base)).call() {
         Ok(r) => r
             .into_json::<serde_json::Value>()
             .ok()
@@ -77,7 +78,7 @@ fn ollama_block() -> String {
             .unwrap_or_else(|| "<unknown>".into()),
         Err(e) => return format!("running: no ({e})\n"),
     };
-    let tags = match ureq::get("http://127.0.0.1:11434/api/tags").call() {
+    let tags = match ureq::get(&format!("{}/api/tags", base)).call() {
         Ok(r) => r.into_json::<serde_json::Value>().ok(),
         Err(_) => None,
     };
