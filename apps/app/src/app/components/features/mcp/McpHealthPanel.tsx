@@ -20,6 +20,8 @@ import {
   Globe,
   Zap,
   BookOpen,
+  Play,
+  Download,
 } from "lucide-solid";
 import { invoke } from "@tauri-apps/api/core";
 import { copyToClipboard } from "../../../lib/clipboard";
@@ -161,23 +163,46 @@ export default function McpHealthPanel() {
     invoke("oo_mcp_restart", { id }).catch(() => {});
 
   /* ── Copy diagnostics with timed feedback ─────────── */
+  const [copyBusy, setCopyBusy] = createSignal(false);
   const [copyNotice, setCopyNotice] = createSignal<string | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
 
   const copyDiagnostics = async () => {
+    setCopyBusy(true);
+    setCopyNotice(null);
     try {
       const report = await invoke<string>("oo_collect_diagnostics");
-      await copyToClipboard(report);
-      const kb = Math.round(report.length / 1024);
-      setCopyNotice(`Copied ${kb} KB`);
+      const ok = await copyToClipboard(report);
+      if (ok) {
+        setCopyNotice(`Copied ${Math.round(report.length / 1024)} KB to clipboard`);
+      } else {
+        (window as unknown as { __ooDiagnostics?: string }).__ooDiagnostics = report;
+        setCopyNotice("Clipboard unavailable; use devtools: window.__ooDiagnostics");
+      }
     } catch (err) {
       setCopyNotice(`Failed: ${String(err)}`);
+    } finally {
+      setCopyBusy(false);
     }
     clearTimeout(copyTimer);
-    copyTimer = setTimeout(() => setCopyNotice(null), 3000);
+    copyTimer = setTimeout(() => setCopyNotice(null), 5000);
   };
 
   onCleanup(() => clearTimeout(copyTimer));
+
+  /* ── Boot all bundled MCPs ───────────────────────── */
+  const [bootBusy, setBootBusy] = createSignal(false);
+
+  const bootAllMcps = async () => {
+    setBootBusy(true);
+    try {
+      await invoke("oo_mcp_boot");
+    } catch {
+      // ignore — individual status events will reflect failures
+    } finally {
+      setBootBusy(false);
+    }
+  };
 
   /* ── Re-run onboarding ────────────────────────────── */
   const reshowOnboarding = () => {
@@ -204,11 +229,15 @@ export default function McpHealthPanel() {
             <span class="text-[11px] font-medium text-green-11">{copyNotice()}</span>
           </Show>
           <button
-            class="inline-flex items-center gap-1.5 rounded-lg border border-dls-border px-2.5 py-1.5 text-[11px] font-medium hover:bg-dls-hover transition-colors"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-dls-border px-2.5 py-1.5 text-[11px] font-medium hover:bg-dls-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={copyDiagnostics}
+            disabled={copyBusy()}
             title="Copy OS + Ollama + MLX + MCP + opencode.json + setup.log tail to clipboard"
           >
-            <ClipboardCopy size={12} /> Copy diagnostics
+            <Show when={copyBusy()} fallback={<ClipboardCopy size={12} />}>
+              <Loader2 size={12} class="animate-spin" />
+            </Show>
+            Copy diagnostics
           </button>
         </div>
       </div>
@@ -286,7 +315,20 @@ export default function McpHealthPanel() {
 
       {/* ── Bundled Servers (supervisor MCPs) ─────────── */}
       <div class="flex flex-col gap-2.5">
-        <h3 class="text-[11px] font-bold text-dls-secondary uppercase tracking-widest">Bundled Servers</h3>
+        <div class="flex items-center justify-between">
+          <h3 class="text-[11px] font-bold text-dls-secondary uppercase tracking-widest">Bundled Servers</h3>
+          <button
+            class="inline-flex items-center gap-1.5 rounded-lg border border-dls-border px-2.5 py-1.5 text-[11px] font-medium hover:bg-dls-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={bootAllMcps}
+            disabled={bootBusy()}
+            title="Install and start all bundled MCP servers"
+          >
+            <Show when={bootBusy()} fallback={<Download size={12} />}>
+              <Loader2 size={12} class="animate-spin" />
+            </Show>
+            {mergedRows().some((r) => r.status === "up") ? "Reinstall All" : "Install & Start All"}
+          </button>
+        </div>
         <For each={mergedRows()}>
           {(r) => {
             const Icon = () => STATUS_ICON[r.status];
@@ -316,14 +358,39 @@ export default function McpHealthPanel() {
                     <p class="mt-0.5 text-xs text-dls-secondary leading-relaxed">{r.description}</p>
                   </div>
 
-                  {/* Restart button */}
-                  <button
-                    class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dls-border px-2 py-1 text-[11px] font-medium text-dls-secondary hover:bg-dls-hover hover:text-dls-text transition-colors"
-                    onClick={() => restart(r.id)}
-                    title="Restart this MCP server"
-                  >
-                    <RotateCw size={12} /> Restart
-                  </button>
+                  {/* Action button — context-dependent */}
+                  <Show when={r.status === "up"}>
+                    <span class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-green-3 px-2 py-1 text-[11px] font-medium text-green-11">
+                      <CircleCheck size={12} /> Running
+                    </span>
+                  </Show>
+                  <Show when={r.status === "down"}>
+                    <button
+                      class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dls-border px-2 py-1 text-[11px] font-medium text-dls-secondary hover:bg-dls-hover hover:text-dls-text transition-colors"
+                      onClick={bootAllMcps}
+                      disabled={bootBusy()}
+                      title="Install and start MCP servers"
+                    >
+                      <Show when={bootBusy()} fallback={<Play size={12} />}>
+                        <Loader2 size={12} class="animate-spin" />
+                      </Show>
+                      Install
+                    </button>
+                  </Show>
+                  <Show when={r.status === "crashed"}>
+                    <button
+                      class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dls-border px-2 py-1 text-[11px] font-medium text-red-11 hover:bg-red-2 transition-colors"
+                      onClick={() => restart(r.id)}
+                      title="Restart this crashed MCP server"
+                    >
+                      <RotateCw size={12} /> Restart
+                    </button>
+                  </Show>
+                  <Show when={r.status === "starting"}>
+                    <span class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-amber-3 px-2 py-1 text-[11px] font-medium text-amber-11">
+                      <Loader2 size={12} class="animate-spin" /> Starting
+                    </span>
+                  </Show>
 
                   {/* Toggle pill */}
                   <button
@@ -332,10 +399,9 @@ export default function McpHealthPanel() {
                     }`}
                     onClick={() => {
                       if (isOn(r.status)) {
-                        // No stop command exists — restart as fallback
                         restart(r.id);
                       } else {
-                        restart(r.id);
+                        bootAllMcps();
                       }
                     }}
                     title={isOn(r.status) ? "Running" : "Start"}
