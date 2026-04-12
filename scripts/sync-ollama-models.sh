@@ -97,7 +97,7 @@ tmp="$(mktemp)"
 jq --argjson models "${models_json}" \
    --arg default_model "ollama/${default_model}" \
    --arg installed_keys "${installed_keys_s}" '
-  (if (.provider // {}) | has("ollama") then
+  (if ((.provider // {}) | has("ollama")) then
      .provider.ollama.models = $models
    else
      .provider = ((.provider // {}) + {
@@ -109,12 +109,14 @@ jq --argjson models "${models_json}" \
        }
      })
    end)
-  | (if (.model // "") | startswith("ollama/") then
-       if ($installed_keys | contains(" " + (.model | sub("^ollama/"; "")) + " ")) then .
+  | (if ((.model // "") | startswith("ollama/")) then
+       (.model | sub("^ollama/"; "")) as $key |
+       if ($installed_keys | contains(" " + $key + " ")) then .
        else .model = $default_model end
      else . end)
-  | (if (.small_model // "") | startswith("ollama/") then
-       if ($installed_keys | contains(" " + (.small_model | sub("^ollama/"; "")) + " ")) then .
+  | (if ((.small_model // "") | startswith("ollama/")) then
+       (.small_model | sub("^ollama/"; "")) as $key |
+       if ($installed_keys | contains(" " + $key + " ")) then .
        else .small_model = $default_model end
      else . end)
 ' "${OPENCODE_JSON}" > "${tmp}"
