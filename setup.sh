@@ -146,6 +146,25 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 2b. Modern bash
+# macOS ships bash 3.2 (locked at that version because Apple won't update to
+# GPLv3). Several of our scripts (build-mcp-bins.sh, stage-python-sidecars.sh,
+# start-mlx.sh) need bash 4+ for associative arrays and mapfile. Those
+# scripts auto-reexec themselves via /opt/homebrew/bin/bash when available,
+# so we install it here BEFORE anything tries to call them.
+# ---------------------------------------------------------------------------
+
+step "Modern bash (Homebrew)"
+if [[ -x /opt/homebrew/bin/bash ]] || [[ -x /usr/local/bin/bash ]]; then
+  BREW_BASH="$(command -v /opt/homebrew/bin/bash || command -v /usr/local/bin/bash)"
+  ok "$(${BREW_BASH} --version 2>/dev/null | head -1)"
+else
+  info "installing bash via Homebrew (system bash 3.2 is too old for build scripts)"
+  brew install bash 2>&1 | tee -a "${LOG}" >/dev/null
+  ok "bash installed at $(command -v /opt/homebrew/bin/bash || command -v /usr/local/bin/bash)"
+fi
+
+# ---------------------------------------------------------------------------
 # 3. Node 22 + pnpm + bun
 # ---------------------------------------------------------------------------
 
