@@ -79,7 +79,11 @@ echo "==> Building UI"
 pnpm build:ui
 
 echo "==> Tauri universal build (unsigned)"
-pnpm tauri build --target universal-apple-darwin --no-bundle=false
+# Default Tauri behavior is to produce the bundle (.app). We explicitly
+# do NOT pass --no-bundle. An earlier version of this script passed
+# `--no-bundle=false`, which Tauri's CLI rejected because --no-bundle is
+# a boolean flag, not a key=value option.
+pnpm tauri build --target universal-apple-darwin
 
 OUT_DIR="${ROOT}/apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos"
 echo "==> Bundle output:"
