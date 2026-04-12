@@ -96,7 +96,11 @@ export default function AppEntry() {
           <LocalProvider>
             <App />
             <Show when={showSetup()}>
-              <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+              <div
+                class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
                 <div class="w-[520px] max-w-[92vw] rounded-2xl border border-dls-border bg-dls-surface shadow-2xl">
                   <div class="flex items-center justify-between border-b border-dls-border px-4 py-3">
                     <span class="text-sm font-semibold">Welcome to OpenOptimized</span>
