@@ -23,7 +23,6 @@
     }
   },
   "bundle": {
-    "$comment": "createUpdaterArtifacts stays false until we have a signing keypair — TAURI_SIGNING_PRIVATE_KEY must be set to produce a signed .app.tar.gz. Flip this back on in a later release wave along with an updater pubkey in the updater plugin config.",
     "createUpdaterArtifacts": false,
     "macOS": {
       "entitlements": "./entitlements.plist"
