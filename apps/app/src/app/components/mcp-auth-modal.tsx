@@ -4,6 +4,7 @@ import Button from "./button";
 import TextInput from "./text-input";
 import type { Client } from "../types";
 import type { McpDirectoryInfo } from "../constants";
+import { copyToClipboard } from "../lib/clipboard";
 import { unwrap } from "../lib/opencode";
 import { opencodeMcpAuth } from "../lib/tauri";
 import { validateMcpServerName } from "../mcp";
@@ -101,7 +102,7 @@ export default function McpAuthModal(props: McpAuthModalProps) {
     const url = authorizationUrl();
     if (!url) return;
     try {
-      await navigator.clipboard.writeText(url);
+      await copyToClipboard(url);
       setAuthUrlCopied(true);
       if (authCopyTimeout !== null) {
         window.clearTimeout(authCopyTimeout);

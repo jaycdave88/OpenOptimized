@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { isToolUIPart, type DynamicToolUIPart, type UIMessage } from "ai";
 
+import { copyToClipboard } from "../../app/lib/clipboard";
 import { MarkdownBlock } from "./markdown.react";
 import { ToolCallView } from "./tool-call.react";
 
@@ -13,7 +14,7 @@ function CopyButton(props: { text: string }) {
       className="inline-flex items-center justify-center rounded-lg border border-dls-border bg-dls-surface p-1.5 text-dls-secondary transition-colors hover:bg-dls-hover hover:text-dls-text"
       title="Copy message"
       onClick={async () => {
-        await navigator.clipboard.writeText(props.text);
+        await copyToClipboard(props.text);
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1200);
       }}
@@ -50,7 +51,7 @@ function messageToText(message: UIMessage) {
 }
 
 async function copyMessage(message: UIMessage) {
-  await navigator.clipboard.writeText(messageToText(message));
+  await copyToClipboard(messageToText(message));
 }
 
 function latestAssistantMessageId(messages: UIMessage[]) {
@@ -167,7 +168,7 @@ function FileCard(props: { part: { filename?: string; url: string; mediaType: st
                   type="button"
                   className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] text-gray-12 transition-colors hover:bg-gray-3/60"
                   onClick={() => {
-                    void navigator.clipboard.writeText(props.part.url);
+                    void copyToClipboard(props.part.url);
                     setMenuOpen(false);
                   }}
                 >

@@ -10,6 +10,7 @@ import {
 } from "lucide-solid";
 
 import { t } from "../../i18n";
+import { copyToClipboard } from "../lib/clipboard";
 
 import Button from "../components/button";
 import ConfirmModal from "../components/confirm-modal";
@@ -733,7 +734,7 @@ export default function IdentitiesView(props: IdentitiesViewProps) {
     const code = telegramPairingCode();
     if (!code) return;
     try {
-      await navigator.clipboard.writeText(code);
+      await copyToClipboard(code);
       setTelegramStatus(t("identities.pairing_code_copied"));
     } catch {
       setTelegramError(t("identities.pairing_code_copy_failed"));

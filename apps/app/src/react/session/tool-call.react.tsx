@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import type { DynamicToolUIPart } from "ai";
 
+import { copyToClipboard } from "../../app/lib/clipboard";
 import { safeStringify, summarizeStep } from "../../app/utils";
 
 function normalizeToolText(value: unknown) {
@@ -43,7 +44,7 @@ function extractDiff(output: unknown) {
 }
 
 async function copyText(text: string) {
-  await navigator.clipboard.writeText(text);
+  await copyToClipboard(text);
 }
 
 export function ToolCallView(props: { part: DynamicToolUIPart; developerMode: boolean }) {

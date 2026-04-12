@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Streamdown } from "streamdown";
+import { copyToClipboard } from "../../app/lib/clipboard";
 
 function MarkdownCodeBlock(props: { className?: string; children: React.ReactNode }) {
   const text = Array.isArray(props.children) ? props.children.join("") : String(props.children ?? "");
@@ -16,7 +17,7 @@ function MarkdownCodeBlock(props: { className?: string; children: React.ReactNod
           type="button"
           className="rounded-full border border-dls-border bg-dls-surface px-3 py-1 text-[11px] font-medium text-dls-text transition-colors hover:bg-dls-hover"
           onClick={async () => {
-            await navigator.clipboard.writeText(text);
+            await copyToClipboard(text);
             setCopied(true);
             window.setTimeout(() => setCopied(false), 1200);
           }}

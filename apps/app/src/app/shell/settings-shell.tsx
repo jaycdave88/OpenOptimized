@@ -15,6 +15,7 @@ import {
   isWindowsPlatform,
   normalizeDirectoryPath,
 } from "../utils";
+import { copyToClipboard } from "../lib/clipboard";
 import { usePlatform } from "../context/platform";
 import { buildFeedbackUrl } from "../lib/feedback";
 import { buildDenAuthUrl, readDenSettings, type DenOrgLlmProvider } from "../lib/den";
@@ -835,7 +836,7 @@ export default function SettingsShell(props: SettingsShellProps) {
 
       setShareWorkspaceProfileUrl(result.url);
       try {
-        await navigator.clipboard.writeText(result.url);
+        await copyToClipboard(result.url);
       } catch {
         // ignore
       }
@@ -902,7 +903,7 @@ export default function SettingsShell(props: SettingsShellProps) {
 
       setShareSkillsSetUrl(result.url);
       try {
-        await navigator.clipboard.writeText(result.url);
+        await copyToClipboard(result.url);
       } catch {
         // ignore
       }

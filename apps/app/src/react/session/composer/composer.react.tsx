@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Agent } from "@opencode-ai/sdk/v2/client";
 import fuzzysort from "fuzzysort";
+import { copyToClipboard } from "../../../app/lib/clipboard";
 import type { ComposerAttachment } from "../../../app/types";
 import { LexicalPromptEditor } from "./editor.react";
 import type { SlashCommandOption } from "../../../app/types";
@@ -403,7 +404,7 @@ export function ReactSessionComposer(props: ComposerProps) {
                 <button
                   type="button"
                   className="rounded-full border border-amber-6/30 bg-white/50 px-2 py-1 text-[11px] font-medium transition-colors hover:bg-white/80"
-                  onClick={() => void navigator.clipboard.writeText(item.text)}
+                  onClick={() => void copyToClipboard(item.text)}
                 >
                   Copy
                 </button>

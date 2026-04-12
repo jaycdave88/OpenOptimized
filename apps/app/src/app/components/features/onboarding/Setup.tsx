@@ -27,6 +27,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { copyToClipboard } from "../../../lib/clipboard";
 
 type Step = "system" | "ollama" | "mcp" | "ready";
 
@@ -125,8 +126,8 @@ export default function Setup(props: { onDone: () => void }) {
     setCopyNotice(null);
     try {
       const report = await invoke<string>("oo_collect_diagnostics");
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(report);
+      const ok = await copyToClipboard(report);
+      if (ok) {
         setCopyNotice(`copied ${Math.round(report.length / 1024)} KB to clipboard`);
       } else {
         // Fallback: stash it on window so devtools can grab it.

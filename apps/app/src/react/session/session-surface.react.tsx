@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import type { UIMessage } from "ai";
 import { useQuery } from "@tanstack/react-query";
 
+import { copyToClipboard } from "../../app/lib/clipboard";
 import { createClient } from "../../app/lib/opencode";
 import { abortSessionSafe } from "../../app/lib/opencode-session";
 import type { OpenworkServerClient, OpenworkSessionSnapshot } from "../../app/lib/openwork-server";
@@ -229,7 +230,7 @@ export function SessionSurface(props: SessionSurfaceProps) {
 
   const handleCopyTranscript = async () => {
     try {
-      await navigator.clipboard.writeText(transcriptToText(renderedMessages));
+      await copyToClipboard(transcriptToText(renderedMessages));
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Failed to copy transcript.");
     }

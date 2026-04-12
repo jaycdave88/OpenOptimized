@@ -1,5 +1,6 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 
+import { copyToClipboard } from "../lib/clipboard";
 import { readDevLogs } from "../lib/dev-log";
 import { isTauriRuntime } from "../utils";
 import { readPerfLogs } from "../lib/perf-log";
@@ -195,7 +196,7 @@ export default function ConfigView(props: ConfigViewProps) {
   const handleCopy = async (value: string, field: string) => {
     if (!value) return;
     try {
-      await navigator.clipboard.writeText(value);
+      await copyToClipboard(value);
       setCopyingField(field);
       if (copyTimeout !== undefined) {
         window.clearTimeout(copyTimeout);

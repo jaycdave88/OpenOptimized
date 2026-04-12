@@ -19,6 +19,7 @@ import {
   Sparkles,
 } from "lucide-solid";
 import { invoke } from "@tauri-apps/api/core";
+import { copyToClipboard } from "../../../lib/clipboard";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 const FIRST_RUN_KEY = "oo:onboarding-complete-v2";
@@ -74,7 +75,7 @@ export default function McpHealthPanel() {
   const copyDiagnostics = async () => {
     try {
       const report = await invoke<string>("oo_collect_diagnostics");
-      await navigator.clipboard.writeText(report);
+      await copyToClipboard(report);
       setCopyNotice(`copied ${Math.round(report.length / 1024)} KB`);
     } catch (err) {
       setCopyNotice(`failed: ${String(err)}`);
