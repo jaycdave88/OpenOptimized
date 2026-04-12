@@ -88,14 +88,14 @@ echo "==> Building UI"
 pnpm build:ui
 
 echo "==> Tauri build (Apple Silicon, unsigned)"
-# We build for aarch64-apple-darwin rather than universal-apple-darwin
-# because OpenWork's apps/desktop/scripts/prepare-sidecar.mjs (invoked as
-# beforeBuildCommand) has OpenCode asset mappings only for per-arch
-# targets, not universal. Apple Silicon covers every modern Mac; users
-# on Intel can still build from source by switching the target.
-pnpm tauri build --target aarch64-apple-darwin
+# We intentionally do NOT pass --target. When --target is set to the
+# host arch (aarch64-apple-darwin on Mac Studio), Tauri treats the build
+# as cross-compilation and skips the macOS bundler, leaving only the raw
+# binary. Without --target, Tauri uses the host arch natively and runs
+# the bundler as expected. `--bundles app` is explicit belt-and-braces.
+pnpm tauri build --bundles app
 
-OUT_DIR="${ROOT}/apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos"
+OUT_DIR="${ROOT}/apps/desktop/src-tauri/target/release/bundle/macos"
 echo "==> Bundle output:"
 ls -la "${OUT_DIR}" || true
 APP_PATH=$(find "${OUT_DIR}" -maxdepth 1 -name "*.app" -print -quit || true)

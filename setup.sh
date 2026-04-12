@@ -408,7 +408,7 @@ if [[ "${SKIP_BUILD}" == "0" ]]; then
   step "Building OpenOptimized.app (Apple Silicon, unsigned)"
   info "this runs scripts/build-mac.sh — expect 5-15 minutes on first build"
   ./scripts/build-mac.sh 2>&1 | tee -a "${LOG}"
-  APP_PATH=$(find apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos -maxdepth 1 -name "*.app" -print -quit 2>/dev/null || true)
+  APP_PATH=$(find apps/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name "*.app" -print -quit 2>/dev/null || true)
   if [[ -z "${APP_PATH}" ]]; then
     fail "build finished but no .app found at expected location (see ${LOG})"
   fi
