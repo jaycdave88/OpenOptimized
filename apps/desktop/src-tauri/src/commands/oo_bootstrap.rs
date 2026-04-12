@@ -13,6 +13,7 @@
 //! tests and the Node sidecar; keep them in sync.
 
 use serde::Serialize;
+use serde_json::{Map, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
@@ -20,6 +21,7 @@ use tauri::{AppHandle, Manager};
 #[derive(Debug, Serialize)]
 pub struct BootstrapResult {
     pub created_opencode_json: bool,
+    pub merged_opencode_keys: Vec<String>,
     pub copied_agents: u32,
     pub user_data_dir: String,
     pub resources_dir: String,
@@ -69,15 +71,37 @@ fn copy_if_missing(src: &Path, dest: &Path) -> Result<bool, String> {
     Ok(true)
 }
 
-fn write_if_missing(dest: &Path, content: &str) -> Result<bool, String> {
-    if dest.exists() {
-        return Ok(false);
+/// Merge two JSON values preserving user state. For each key in `defaults`:
+///   - if absent in `target`, copy it from defaults
+///   - if both are objects, recurse (so `provider.ollama` is added even
+///     when `provider.mlx-r1-uncensored` already exists)
+///   - otherwise leave `target`'s value untouched (user wins)
+///
+/// Returns the list of top-level keys that were added or deep-merged.
+fn smart_merge(target: &mut Value, defaults: &Value) -> Vec<String> {
+    let mut touched = Vec::new();
+    if let (Some(target_obj), Some(defaults_obj)) =
+        (target.as_object_mut(), defaults.as_object())
+    {
+        for (key, default_val) in defaults_obj {
+            match target_obj.get_mut(key) {
+                None => {
+                    target_obj.insert(key.clone(), default_val.clone());
+                    touched.push(key.clone());
+                }
+                Some(existing) => {
+                    if existing.is_object() && default_val.is_object() {
+                        let sub = smart_merge(existing, default_val);
+                        if !sub.is_empty() {
+                            touched.push(key.clone());
+                        }
+                    }
+                    // otherwise user's value wins — do nothing
+                }
+            }
+        }
     }
-    if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(dest, content).map_err(|e| e.to_string())?;
-    Ok(true)
+    touched
 }
 
 #[tauri::command]
@@ -85,15 +109,45 @@ pub fn oo_bootstrap(app: AppHandle) -> Result<BootstrapResult, String> {
     let user_dir = user_data_dir(&app)?;
     let resources = resources_dir(&app)?;
 
-    // 1. opencode.json — rewrite placeholders while copying.
+    // 1. opencode.json — smart-merge defaults into whatever already exists
+    //    (or create from scratch if missing). Users may have previously run
+    //    register-mlx-providers.sh which creates a stub opencode.json with
+    //    only the MLX entries; this ensures the Ollama provider + bundled
+    //    MCPs still land even when that file pre-exists.
     let defaults_src = resources.join("opencode.defaults.json");
     let opencode_dest = user_dir.join("opencode.json");
-    let created_opencode_json = if defaults_src.exists() {
+    let (created_opencode_json, merged_opencode_keys) = if defaults_src.exists() {
         let raw = fs::read_to_string(&defaults_src).map_err(|e| e.to_string())?;
         let rewritten = rewrite_resource_placeholders(&raw, &resources);
-        write_if_missing(&opencode_dest, &rewritten)?
+        let defaults: Value =
+            serde_json::from_str(&rewritten).map_err(|e| format!("parse defaults: {e}"))?;
+
+        if opencode_dest.exists() {
+            let existing_raw =
+                fs::read_to_string(&opencode_dest).map_err(|e| e.to_string())?;
+            let mut existing: Value = serde_json::from_str(&existing_raw)
+                .unwrap_or_else(|_| Value::Object(Map::new()));
+            if !existing.is_object() {
+                existing = Value::Object(Map::new());
+            }
+            let touched = smart_merge(&mut existing, &defaults);
+            if !touched.is_empty() {
+                let pretty = serde_json::to_string_pretty(&existing)
+                    .map_err(|e| e.to_string())?;
+                fs::write(&opencode_dest, pretty).map_err(|e| e.to_string())?;
+            }
+            (false, touched)
+        } else {
+            if let Some(parent) = opencode_dest.parent() {
+                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let pretty = serde_json::to_string_pretty(&defaults)
+                .map_err(|e| e.to_string())?;
+            fs::write(&opencode_dest, pretty).map_err(|e| e.to_string())?;
+            (true, Vec::new())
+        }
     } else {
-        false
+        (false, Vec::new())
     };
 
     // 2. Seed agent personas.
@@ -124,6 +178,7 @@ pub fn oo_bootstrap(app: AppHandle) -> Result<BootstrapResult, String> {
 
     Ok(BootstrapResult {
         created_opencode_json,
+        merged_opencode_keys,
         copied_agents,
         user_data_dir: user_dir.display().to_string(),
         resources_dir: resources.display().to_string(),

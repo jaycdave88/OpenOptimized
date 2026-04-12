@@ -269,6 +269,14 @@ if [[ "${SKIP_OLLAMA}" == "0" ]]; then
     fi
   fi
 
+  # Sync the list of installed Ollama models into opencode.json. Safe to
+  # run even if opencode.json doesn't exist yet (the script just exits
+  # early). Re-running setup.sh after pulling new Ollama models picks
+  # them up automatically.
+  if [[ "${OLLAMA_AVAILABLE}" == "1" ]]; then
+    ./scripts/sync-ollama-models.sh 2>&1 | tee -a "${LOG}" | sed 's/^/    /'
+  fi
+
   # Explicit opt-in model pulls. Skipped by default since users with
   # local models don't want setup.sh to re-fetch anything.
   if [[ "${OLLAMA_AVAILABLE}" == "1" && "${PULL_MODELS}" == "1" ]]; then
