@@ -9,9 +9,19 @@
  */
 
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
-import { RotateCw, CircleCheck, CircleAlert, Circle, Loader2 } from "lucide-solid";
+import {
+  ClipboardCopy,
+  RotateCw,
+  CircleCheck,
+  CircleAlert,
+  Circle,
+  Loader2,
+  Sparkles,
+} from "lucide-solid";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+
+const FIRST_RUN_KEY = "oo:first-run-complete";
 
 type McpStatus = "starting" | "up" | "down" | "crashed";
 
@@ -59,9 +69,50 @@ export default function McpHealthPanel() {
   const restart = (id: McpStateSnapshot["id"]) =>
     invoke("oo_mcp_restart", { id }).catch(() => {});
 
+  const [copyNotice, setCopyNotice] = createSignal<string | null>(null);
+  const copyDiagnostics = async () => {
+    try {
+      const report = await invoke<string>("oo_collect_diagnostics");
+      await navigator.clipboard.writeText(report);
+      setCopyNotice(`copied ${Math.round(report.length / 1024)} KB`);
+    } catch (err) {
+      setCopyNotice(`failed: ${String(err)}`);
+    }
+  };
+
+  const reshowOnboarding = () => {
+    try {
+      window.localStorage.removeItem(FIRST_RUN_KEY);
+    } catch {
+      // ignore
+    }
+    window.location.reload();
+  };
+
   return (
     <section class="flex flex-col gap-3 p-4">
-      <h2 class="text-base font-semibold">MCP servers</h2>
+      <div class="flex items-center justify-between">
+        <h2 class="text-base font-semibold">MCP servers</h2>
+        <div class="flex items-center gap-2">
+          <Show when={copyNotice()}>
+            <span class="text-[11px] text-dls-secondary">{copyNotice()}</span>
+          </Show>
+          <button
+            class="inline-flex items-center gap-1 rounded-md border border-dls-border px-2 py-1 text-[11px] hover:bg-dls-hover"
+            onClick={copyDiagnostics}
+            title="Copy OS + Ollama + MLX + MCP + opencode.json + setup.log tail to clipboard"
+          >
+            <ClipboardCopy size={12} /> Copy diagnostics
+          </button>
+          <button
+            class="inline-flex items-center gap-1 rounded-md border border-dls-border px-2 py-1 text-[11px] hover:bg-dls-hover"
+            onClick={reshowOnboarding}
+            title="Clear the first-run flag and re-open the onboarding overlay"
+          >
+            <Sparkles size={12} /> Re-run onboarding
+          </button>
+        </div>
+      </div>
       <ul class="divide-y divide-dls-border rounded-lg border border-dls-border">
         <For each={rows()}>
           {(r) => {

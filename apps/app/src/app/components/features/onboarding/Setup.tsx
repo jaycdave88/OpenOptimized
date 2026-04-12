@@ -18,14 +18,17 @@ import {
   CircleAlert,
   CircleCheck,
   Circle,
+  ClipboardCopy,
   Download,
+  FolderPlus,
   Loader2,
+  Sparkles,
 } from "lucide-solid";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
-type Step = "system" | "ollama" | "mcp" | "done";
+type Step = "system" | "ollama" | "mcp" | "ready";
 
 interface ToolCheck {
   id: string;
@@ -111,13 +114,53 @@ export default function Setup(props: { onDone: () => void }) {
     setMcpTotal(4);
   };
 
-  const finish = () => {
-    setStep("done");
-    props.onDone();
+  const advanceToReady = () => setStep("ready");
+
+  const finish = () => props.onDone();
+
+  const [copyBusy, setCopyBusy] = createSignal(false);
+  const [copyNotice, setCopyNotice] = createSignal<string | null>(null);
+  const copyDiagnostics = async () => {
+    setCopyBusy(true);
+    setCopyNotice(null);
+    try {
+      const report = await invoke<string>("oo_collect_diagnostics");
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(report);
+        setCopyNotice(`copied ${Math.round(report.length / 1024)} KB to clipboard`);
+      } else {
+        // Fallback: stash it on window so devtools can grab it.
+        (window as unknown as { __ooDiagnostics?: string }).__ooDiagnostics = report;
+        setCopyNotice("clipboard unavailable; grep devtools: window.__ooDiagnostics");
+      }
+    } catch (err) {
+      setCopyNotice(`failed: ${String(err)}`);
+    } finally {
+      setCopyBusy(false);
+    }
   };
 
   return (
     <section class="flex min-h-[460px] flex-col gap-4 p-5">
+      <div class="flex items-center justify-between border-b border-dls-border pb-2 text-xs text-dls-secondary">
+        <span>
+          Step: <span class="font-mono text-dls-text">{step()}</span>
+        </span>
+        <div class="flex items-center gap-2">
+          <Show when={copyNotice()}>
+            <span class="text-[11px] text-dls-secondary">{copyNotice()}</span>
+          </Show>
+          <button
+            class="inline-flex items-center gap-1 rounded-md border border-dls-border px-2 py-1 text-[11px] hover:bg-dls-hover"
+            onClick={copyDiagnostics}
+            disabled={copyBusy()}
+            title="Copy OS + Ollama + MLX + MCP + opencode.json + setup.log tail to clipboard for sharing"
+          >
+            <ClipboardCopy size={12} /> Copy diagnostics
+          </button>
+        </div>
+      </div>
+
       <Show when={step() === "system"}>
         <div>
           <h2 class="text-lg font-semibold">System check</h2>
@@ -257,12 +300,79 @@ export default function Setup(props: { onDone: () => void }) {
           You can close this dialog at any time; setup continues in the
           background. Progress is also visible under Settings → MCP servers.
         </p>
-        <div class="flex justify-end">
+        <div class="flex justify-end gap-2">
+          <button
+            class="rounded-md border border-dls-border px-3 py-2 text-sm"
+            onClick={advanceToReady}
+          >
+            Continue anyway
+          </button>
+          <button
+            class="rounded-md bg-dls-accent px-3 py-2 text-sm text-white"
+            onClick={advanceToReady}
+            disabled={mcpUp().size < 4}
+          >
+            Next
+          </button>
+        </div>
+      </Show>
+
+      <Show when={step() === "ready"}>
+        <div>
+          <div class="flex items-center gap-2">
+            <Sparkles size={16} class="text-amber-11" />
+            <h2 class="text-lg font-semibold">You're ready</h2>
+          </div>
+          <p class="mt-2 text-xs text-dls-secondary">
+            OpenOptimized runs sessions per-workspace. To start chatting, add
+            a workspace and point it at a local code directory. OpenCode, the
+            MCPs, and your configured models all wire up once a workspace is
+            selected.
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-2 rounded-lg border border-dls-border bg-dls-surface p-3 text-xs">
+          <span class="font-semibold">What's configured</span>
+          <ul class="flex flex-col gap-1 text-dls-secondary">
+            <li>
+              <Show when={report()?.ollama_running} fallback="Ollama: not running (cloud-only mode)">
+                Ollama: running; models land in the picker once a workspace exists
+              </Show>
+            </li>
+            <li>MLX models: started by setup.sh and registered in opencode.json</li>
+            <li>MCP servers: configured in opencode.json (4 of them)</li>
+            <li>
+              <Show when={mcpUp().size >= 4} fallback={`MCP servers: ${mcpUp().size}/4 reporting ready`}>
+                MCP servers: all 4 reporting ready
+              </Show>
+            </li>
+          </ul>
+        </div>
+
+        <div class="flex flex-col gap-2 rounded-lg border border-amber-7/30 bg-amber-7/10 p-3 text-xs text-amber-11">
+          <div class="flex items-center gap-1 font-semibold">
+            <FolderPlus size={14} /> Next: add a workspace
+          </div>
+          <p>
+            After you close this dialog, click <span class="font-mono">+ Add workspace</span>
+            {" "}in the sidebar (bottom-left) and point it at a local project
+            directory. Your model picker will populate once the session starts.
+          </p>
+        </div>
+
+        <div class="mt-auto flex items-center justify-between">
+          <button
+            class="inline-flex items-center gap-1 text-xs text-dls-accent hover:underline"
+            onClick={copyDiagnostics}
+            disabled={copyBusy()}
+          >
+            <ClipboardCopy size={12} /> Copy startup logs + diagnostics
+          </button>
           <button
             class="rounded-md bg-dls-accent px-3 py-2 text-sm text-white"
             onClick={finish}
           >
-            Done
+            Let's go
           </button>
         </div>
       </Show>

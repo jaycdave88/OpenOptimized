@@ -33,6 +33,7 @@ use commands::oo_extras::{
     microfish_install, microfish_launch, microfish_status, oo_plugin_install,
     oo_plugin_installed_list, oo_plugin_uninstall, oo_plugins_list,
 };
+use commands::oo_diagnostics::oo_collect_diagnostics;
 use commands::oo_mcp::{oo_mcp_boot, oo_mcp_restart, oo_mcp_status};
 use commands::oo_system::oo_system_check;
 use commands::opencode_router::{
@@ -245,7 +246,8 @@ pub fn run() {
             oo_plugin_uninstall,
             agency_agents_list,
             agency_agents_install,
-            oo_system_check
+            oo_system_check,
+            oo_collect_diagnostics
         ])
         .build(tauri::generate_context!())
         .expect("error while building OpenWork");
