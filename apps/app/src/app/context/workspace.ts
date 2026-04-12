@@ -3338,20 +3338,20 @@ export function createWorkspaceStore(options: {
         }, 35_000);
 
         const setupListeners = async () => {
-          const unlistenReady = await listen<EngineInfo>("engine.ready", (event) => {
+          const unlistenReady = await listen<EngineInfo>("engine:ready", (event) => {
             clearTimeout(timeout);
             cleanup?.();
             resolve(event.payload);
           });
 
-          const unlistenError = await listen<{ error: string }>("engine.error", (event) => {
+          const unlistenError = await listen<{ error: string }>("engine:error", (event) => {
             clearTimeout(timeout);
             cleanup?.();
             reject(new Error(event.payload.error));
           });
 
           const unlistenProgress = await listen<{ phase: string; attempt: number; maxAttempts: number }>(
-            "engine.progress",
+            "engine:progress",
             (event) => {
               options.setBusyLabel(
                 `Starting engine… (${event.payload.attempt}/${event.payload.maxAttempts})`,

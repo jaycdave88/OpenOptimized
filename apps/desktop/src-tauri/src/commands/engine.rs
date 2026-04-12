@@ -981,7 +981,7 @@ pub fn engine_start_async(
         loop {
             attempt += 1;
             let _ = bg_app.emit(
-                "engine.progress",
+                "engine:progress",
                 serde_json::json!({
                     "phase": "orchestrator_health_check",
                     "attempt": attempt,
@@ -996,7 +996,7 @@ pub fn engine_start_async(
                         Some(oc) => oc,
                         None => {
                             let _ = bg_app.emit(
-                                "engine.error",
+                                "engine:error",
                                 serde_json::json!({
                                     "error": "Orchestrator did not report OpenCode status",
                                 }),
@@ -1080,7 +1080,7 @@ pub fn engine_start_async(
                         last_stdout: None,
                         last_stderr: None,
                     };
-                    let _ = bg_app.emit("engine.ready", &ready_info);
+                    let _ = bg_app.emit("engine:ready", &ready_info);
                     return;
                 }
                 Ok(_) => {
@@ -1097,7 +1097,7 @@ pub fn engine_start_async(
                     last_error,
                 );
                 let _ = bg_app.emit(
-                    "engine.error",
+                    "engine:error",
                     serde_json::json!({ "error": error_msg }),
                 );
                 return;
