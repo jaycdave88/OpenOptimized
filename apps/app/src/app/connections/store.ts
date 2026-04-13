@@ -606,7 +606,24 @@ export function createConnectionsStore(options: {
       if (currentlyConnected) {
         unwrap(await activeClient.mcp.disconnect({ directory: resolvedProjectDir, name }));
       } else {
-        unwrap(await activeClient.mcp.connect({ directory: resolvedProjectDir, name }));
+        // For failed MCPs, re-add to force a full restart instead of just reconnecting
+        const currentStatus = mcpStatuses()[name];
+        if (currentStatus?.status === "failed") {
+          const entry = mcpServers().find((s) => s.name === name);
+          if (entry) {
+            unwrap(
+              await activeClient.mcp.add({
+                directory: resolvedProjectDir,
+                name,
+                config: entry.config,
+              }),
+            );
+          } else {
+            unwrap(await activeClient.mcp.connect({ directory: resolvedProjectDir, name }));
+          }
+        } else {
+          unwrap(await activeClient.mcp.connect({ directory: resolvedProjectDir, name }));
+        }
       }
       await refreshMcpServers();
     } catch (e) {
