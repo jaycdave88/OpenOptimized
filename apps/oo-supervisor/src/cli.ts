@@ -89,11 +89,21 @@ function toServerConfig(
   if (entry.enabled === false) return null;
   const cmd = entry.command ?? [];
   if (!cmd[0]) return null;
+
+  // Forward workspace directory so MCP servers (e.g. graphify) can find
+  // project-relative files like graphify-out/graph.json.
+  const workspaceDir = process.env.OO_WORKSPACE_DIR;
+  const env: Record<string, string> = { ...entry.environment };
+  if (workspaceDir) {
+    env.OO_WORKSPACE_DIR = workspaceDir;
+  }
+
   return {
     id: id as McpServerId,
     command: cmd[0],
     args: cmd.slice(1),
-    env: entry.environment,
+    env: Object.keys(env).length > 0 ? env : undefined,
+    cwd: workspaceDir || undefined,
   };
 }
 
