@@ -18,6 +18,7 @@ import {
   CircleAlert,
   CircleCheck,
   Circle,
+  CircleX,
   ClipboardCopy,
   Download,
   FolderPlus,
@@ -56,6 +57,8 @@ export default function Setup(props: { onDone: () => void }) {
   const [mcpTotal, setMcpTotal] = createSignal(0);
   const [mcpError, setMcpError] = createSignal<string | null>(null);
   const [supervisorBin, setSupervisorBin] = createSignal<string | null>(null);
+  const [timedOut, setTimedOut] = createSignal(false);
+  const [mcpFailed, setMcpFailed] = createSignal(new Set<string>());
 
   const unlisteners: UnlistenFn[] = [];
 
@@ -65,11 +68,18 @@ export default function Setup(props: { onDone: () => void }) {
     if (r?.ollama_running) {
       setStep("ollama");
     }
-    // Listen for mcp.status events so step 3 can show live progress.
+    // Listen for mcp.status events so step 3 can show live progress
+    // and mark crashed/down MCPs as failed immediately.
     unlisteners.push(
       await listen<McpStateSnapshot>("mcp.status", (e) => {
         if (e.payload.status === "up") {
           setMcpUp((prev) => {
+            const next = new Set(prev);
+            next.add(e.payload.id);
+            return next;
+          });
+        } else if (e.payload.status === "crashed" || e.payload.status === "down") {
+          setMcpFailed((prev) => {
             const next = new Set(prev);
             next.add(e.payload.id);
             return next;
@@ -84,8 +94,16 @@ export default function Setup(props: { onDone: () => void }) {
       }),
     );
     unlisteners.push(
-      await listen<{ stage: string; error: string }>("mcp.supervisor.error", (e) => {
+      await listen<{ stage: string; error: string; id?: string }>("mcp.supervisor.error", (e) => {
         setMcpError(`${e.payload.stage}: ${e.payload.error}`);
+        // Mark the specific MCP as failed if an id is provided.
+        if (e.payload.id) {
+          setMcpFailed((prev) => {
+            const next = new Set(prev);
+            next.add(e.payload.id!);
+            return next;
+          });
+        }
       }),
     );
     unlisteners.push(
@@ -96,6 +114,24 @@ export default function Setup(props: { onDone: () => void }) {
         );
       }),
     );
+
+    // 30-second timeout: if any MCPs are still spinning, mark them as failed
+    // and auto-enable the Next button so users are never stuck.
+    const timeoutId = setTimeout(() => {
+      setTimedOut(true);
+      const allMcps = ["cocoindex", "mempalace", "graphify", "context-mode"];
+      const up = mcpUp();
+      const failed = mcpFailed();
+      const stillPending = allMcps.filter((id) => !up.has(id) && !failed.has(id));
+      if (stillPending.length > 0) {
+        setMcpFailed((prev) => {
+          const next = new Set(prev);
+          for (const id of stillPending) next.add(id);
+          return next;
+        });
+      }
+    }, 30_000);
+    unlisteners.push(() => clearTimeout(timeoutId));
   });
 
   onCleanup(() => {
@@ -275,11 +311,21 @@ export default function Setup(props: { onDone: () => void }) {
               <li class="flex items-center gap-2 px-2 py-1 text-sm">
                 <Show
                   when={mcpUp().has(id)}
-                  fallback={<Loader2 size={14} class="animate-spin text-amber-11" />}
+                  fallback={
+                    <Show
+                      when={mcpFailed().has(id)}
+                      fallback={<Loader2 size={14} class="animate-spin text-amber-11" />}
+                    >
+                      <CircleX size={14} class="text-red-11" />
+                    </Show>
+                  }
                 >
                   <CircleCheck size={14} class="text-green-11" />
                 </Show>
                 <span class="font-mono text-xs">{id}</span>
+                <Show when={mcpFailed().has(id) && !mcpUp().has(id)}>
+                  <span class="text-[11px] text-red-11">failed to start</span>
+                </Show>
               </li>
             )}
           </For>
@@ -303,15 +349,23 @@ export default function Setup(props: { onDone: () => void }) {
         </p>
         <div class="flex justify-end gap-2">
           <button
-            class="rounded-md border border-dls-border px-3 py-2 text-sm"
+            class={`rounded-md px-3 py-2 text-sm ${
+              timedOut() || mcpFailed().size > 0
+                ? "bg-dls-accent text-white"
+                : "border border-dls-border"
+            }`}
             onClick={advanceToReady}
           >
             Continue anyway
           </button>
           <button
-            class="rounded-md bg-dls-accent px-3 py-2 text-sm text-white"
+            class={`rounded-md px-3 py-2 text-sm ${
+              timedOut() || mcpFailed().size > 0
+                ? "border border-dls-border"
+                : "bg-dls-accent text-white"
+            }`}
             onClick={advanceToReady}
-            disabled={mcpUp().size < 4}
+            disabled={mcpUp().size < 4 && !timedOut() && mcpFailed().size === 0}
           >
             Next
           </button>
