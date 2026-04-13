@@ -38,6 +38,15 @@ export function createConnectionsStore(options: {
 }) {
   const translate = (key: string) => t(key, currentLocale());
 
+  function mcpServersChanged(current: McpServerEntry[], next: McpServerEntry[]): boolean {
+    if (current.length !== next.length) return true;
+    for (let i = 0; i < current.length; i++) {
+      if (current[i].name !== next[i].name) return true;
+      if (JSON.stringify(current[i].config) !== JSON.stringify(next[i].config)) return true;
+    }
+    return false;
+  }
+
   const [mcpServers, setMcpServers] = createSignal<McpServerEntry[]>([]);
   const [mcpStatus, setMcpStatus] = createSignal<string | null>(null);
   const [mcpLastUpdatedAt, setMcpLastUpdatedAt] = createSignal<number | null>(null);
@@ -170,7 +179,9 @@ export function createConnectionsStore(options: {
           name: entry.name,
           config: entry.config as McpServerEntry["config"],
         }));
-        setMcpServers(next);
+        if (mcpServersChanged(mcpServers(), next)) {
+          setMcpServers(next);
+        }
         setMcpLastUpdatedAt(Date.now());
 
         const activeClient = options.client();
@@ -204,7 +215,9 @@ export function createConnectionsStore(options: {
           name: entry.name,
           config: entry.config as McpServerEntry["config"],
         }));
-        setMcpServers(next);
+        if (mcpServersChanged(mcpServers(), next)) {
+          setMcpServers(next);
+        }
         setMcpLastUpdatedAt(Date.now());
 
         const activeClient = options.client();
@@ -255,7 +268,9 @@ export function createConnectionsStore(options: {
       }
 
       const next = parseMcpServersFromContent(config.content);
-      setMcpServers(next);
+      if (mcpServersChanged(mcpServers(), next)) {
+        setMcpServers(next);
+      }
       setMcpLastUpdatedAt(Date.now());
 
       const activeClient = options.client();
@@ -643,7 +658,6 @@ export function createConnectionsStore(options: {
         // Fall back to full refresh if status call fails
       }
 
-      await refreshMcpServers();
     } catch (e) {
       setMcpStatus(e instanceof Error ? e.message : `Failed to ${currentlyConnected ? "disconnect" : "connect"} ${name}`);
     } finally {
