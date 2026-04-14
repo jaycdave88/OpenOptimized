@@ -107,7 +107,8 @@ pub struct OllamaPullProgress {
 
 #[tauri::command]
 pub fn ollama_status() -> OllamaStatus {
-    let url = format!("{}/api/version", OLLAMA_BASE);
+    let base = get_ollama_base();
+    let url = format!("{}/api/version", base);
     match ureq::get(&url).call() {
         Ok(resp) => match resp.into_json::<serde_json::Value>() {
             Ok(body) => OllamaStatus {
@@ -134,7 +135,8 @@ pub fn ollama_status() -> OllamaStatus {
 
 #[tauri::command]
 pub fn ollama_list_models() -> Result<Vec<OllamaModel>, String> {
-    let url = format!("{}/api/tags", OLLAMA_BASE);
+    let base = get_ollama_base();
+    let url = format!("{}/api/tags", base);
     let resp = ureq::get(&url).call().map_err(|e| e.to_string())?;
     let body: serde_json::Value = resp.into_json().map_err(|e| e.to_string())?;
     let models = body
@@ -155,7 +157,8 @@ pub fn ollama_list_models() -> Result<Vec<OllamaModel>, String> {
 /// synchronous commands run on the tokio blocking pool).
 #[tauri::command]
 pub fn ollama_pull_model(app: AppHandle, name: String) -> Result<(), String> {
-    let url = format!("{}/api/pull", OLLAMA_BASE);
+    let base = get_ollama_base();
+    let url = format!("{}/api/pull", base);
     let body = serde_json::json!({ "name": name, "stream": true });
     let resp = ureq::post(&url)
         .set("content-type", "application/json")
@@ -184,4 +187,31 @@ pub fn ollama_pull_model(app: AppHandle, name: String) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Set a custom Ollama endpoint URL. Persists to disk so it survives app restarts.
+#[tauri::command]
+pub fn ollama_set_endpoint(url: String) -> Result<(), String> {
+    // Validate URL format
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("URL must start with http:// or https://".to_string());
+    }
+    // Strip trailing slash
+    let url = url.trim_end_matches('/').to_string();
+    // Store in memory
+    *CUSTOM_ENDPOINT.lock().unwrap() = Some(url.clone());
+    // Persist to file
+    if let Some(path) = endpoint_persist_path() {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(&path, serde_json::json!({ "url": url }).to_string());
+    }
+    Ok(())
+}
+
+/// Return the currently resolved Ollama base URL.
+#[tauri::command]
+pub fn ollama_get_endpoint() -> String {
+    get_ollama_base()
 }
