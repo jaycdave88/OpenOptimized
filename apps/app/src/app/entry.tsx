@@ -25,9 +25,19 @@ const LEGACY_FIRST_RUN_KEYS = ["oo:first-run-complete"];
  */
 async function runOOBootstrap(): Promise<boolean> {
   if (!isTauriRuntime()) return false;
+  let cliSkipMarker = false;
   try {
     const { invoke } = await import("@tauri-apps/api/core");
     await invoke("oo_bootstrap");
+    // Check for the CLI skip marker written by scripts/skip-onboarding.sh.
+    // The Rust command returns BootstrapResult — we just check a sidecar
+    // marker file under $APPSUPPORT via a separate diagnostics call.
+    try {
+      const report = await invoke<string>("oo_collect_diagnostics");
+      cliSkipMarker = report.includes(".skip-onboarding");
+    } catch {
+      // non-fatal
+    }
   } catch (err) {
     console.warn("[openoptimized] bootstrap failed", err);
   }
@@ -37,6 +47,10 @@ async function runOOBootstrap(): Promise<boolean> {
     // entries hanging around on upgrade.
     for (const legacy of LEGACY_FIRST_RUN_KEYS) {
       window.localStorage.removeItem(legacy);
+    }
+    if (cliSkipMarker) {
+      window.localStorage.setItem(FIRST_RUN_KEY, String(Date.now()));
+      return false;
     }
     return !window.localStorage.getItem(FIRST_RUN_KEY);
   } catch {

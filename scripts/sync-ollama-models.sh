@@ -97,7 +97,8 @@ tmp="$(mktemp)"
 jq --argjson models "${models_json}" \
    --arg default_model "ollama/${default_model}" \
    --arg installed_keys "${installed_keys_s}" '
-  (if ((.provider // {}) | has("ollama")) then
+  # 1) Set or create the ollama provider with the canonical model map.
+  (if (.provider // {}) | has("ollama") then
      .provider.ollama.models = $models
    else
      .provider = ((.provider // {}) + {
@@ -109,15 +110,18 @@ jq --argjson models "${models_json}" \
        }
      })
    end)
-  | (if ((.model // "") | startswith("ollama/")) then
-       (.model | sub("^ollama/"; "")) as $key |
-       if ($installed_keys | contains(" " + $key + " ")) then .
-       else .model = $default_model end
+  # 2) Fix stale .model / .small_model. Save each stripped name to a
+  #    binding first so inner pipelines do not rebind `.` to a string
+  #    (which was what broke the previous version).
+  | (.model // "")      as $cur_model
+  | (.small_model // "") as $cur_small
+  | (if ($cur_model | startswith("ollama/")) and
+        (($installed_keys | contains(" " + ($cur_model | sub("^ollama/"; "")) + " ")) | not)
+     then .model = $default_model
      else . end)
-  | (if ((.small_model // "") | startswith("ollama/")) then
-       (.small_model | sub("^ollama/"; "")) as $key |
-       if ($installed_keys | contains(" " + $key + " ")) then .
-       else .small_model = $default_model end
+  | (if ($cur_small | startswith("ollama/")) and
+        (($installed_keys | contains(" " + ($cur_small | sub("^ollama/"; "")) + " ")) | not)
+     then .small_model = $default_model
      else . end)
 ' "${OPENCODE_JSON}" > "${tmp}"
 
