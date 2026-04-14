@@ -53,6 +53,22 @@ for name in cocoindex mempalace graphify context-mode; do
   done
 done
 
+echo "==> graphify MCP import check (regression guard)"
+# Graphify-specific bug history: serve.py's `mcp` dep is in [mcp] extras,
+# AND graphify-out/graph.json must exist before the server binds. Both
+# failures manifest as an instant "Failed" in the MCP panel. Assert the
+# run.sh template wires both in.
+if grep -q '\[mcp\]' "${ROOT}/resources/mcp-bin/graphify/setup.sh" 2>/dev/null; then
+  pass "graphify/setup.sh installs the [mcp] extra"
+else
+  fail "graphify/setup.sh missing [mcp] extra (serve.py will ImportError)"
+fi
+if grep -q 'graphify-out' "${ROOT}/resources/mcp-bin/graphify/run.sh" 2>/dev/null; then
+  pass "graphify/run.sh seeds graph.json before exec"
+else
+  fail "graphify/run.sh does not seed graph.json (serve.py will FileNotFoundError)"
+fi
+
 echo "==> stage-python-sidecars"
 if bash "${ROOT}/scripts/stage-python-sidecars.sh" >/tmp/smoke-sidecar.log 2>&1; then
   pass "stage-python-sidecars.sh --all"

@@ -111,6 +111,14 @@ write_scripts_python() {
   local entry="${ENTRYPOINTS[$name]}"
   local dir="${OUT}/${name}"
 
+  # Graphify puts the `mcp` Python library in `[mcp]` extras, not the
+  # default dependency set. Without it, `python -m graphify.serve`
+  # ImportErrors out of the gate. Explicitly install the extra.
+  local pip_target='"${HERE}/source"'
+  if [[ "${name}" == "graphify" ]]; then
+    pip_target='"${HERE}/source[mcp]"'
+  fi
+
   cat > "${dir}/setup.sh" <<EOF
 #!/usr/bin/env bash
 # Idempotent first-launch setup for the ${name} MCP server.
@@ -137,9 +145,35 @@ PY="\$(command -v python3.12 || command -v python3)"
 # shellcheck disable=SC1091
 source "\${VENV_DIR}/bin/activate"
 pip install --quiet --upgrade pip
-pip install --quiet -e "\${HERE}/source"
+pip install --quiet -e ${pip_target}
 printf '{"type":"setup","name":"${name}","status":"installed","venv":"%s"}\n' "\${VENV_DIR}"
 EOF
+
+  # Graphify's serve.py hard-fails if graphify-out/graph.json isn't
+  # present (validate_graph_path raises ValueError / FileNotFoundError
+  # before the MCP server can even bind stdio). We anchor to
+  # OO_WORKSPACE_DIR when the supervisor provides it, else a graphify-
+  # specific subdir under $APPSUPPORT, and seed an empty valid graph so
+  # the server starts cleanly. Users can replace it by running
+  # `graphify ingest <dir>` later.
+  local graphify_prelude=""
+  if [[ "${name}" == "graphify" ]]; then
+    graphify_prelude='
+# Graphify requires a graph.json to exist before `serve.py` will bind.
+# Anchor to the workspace directory the supervisor passes via
+# OO_WORKSPACE_DIR; fall back to a user-local dir so graphify also runs
+# when OpenOptimized is launched outside a workspace.
+WORK_DIR="${OO_WORKSPACE_DIR:-${USER_DATA_DIR}/graphify}"
+mkdir -p "${WORK_DIR}"
+cd "${WORK_DIR}"
+GRAPH_DIR="${WORK_DIR}/graphify-out"
+GRAPH_FILE="${GRAPH_DIR}/graph.json"
+if [[ ! -f "${GRAPH_FILE}" ]]; then
+  mkdir -p "${GRAPH_DIR}"
+  printf "%s\n" "{\"directed\":false,\"multigraph\":false,\"graph\":{},\"nodes\":[],\"links\":[]}" > "${GRAPH_FILE}"
+fi
+'
+  fi
 
   cat > "${dir}/run.sh" <<EOF
 #!/usr/bin/env bash
@@ -154,7 +188,7 @@ if [[ ! -d "\${VENV_DIR}" ]]; then
 fi
 
 # shellcheck disable=SC1091
-source "\${VENV_DIR}/bin/activate"
+source "\${VENV_DIR}/bin/activate"${graphify_prelude}
 exec ${entry} "\$@"
 EOF
 
