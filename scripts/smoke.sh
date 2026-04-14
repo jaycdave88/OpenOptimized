@@ -53,6 +53,26 @@ for name in cocoindex mempalace graphify context-mode; do
   done
 done
 
+echo "==> seed-project-mcps.sh produces OpenCode-compatible MCP shape"
+if command -v jq >/dev/null; then
+  seed_dir="$(mktemp -d)"
+  if bash "${ROOT}/scripts/seed-project-mcps.sh" "${seed_dir}" >/dev/null 2>&1; then
+    mcp_count=$(jq '.mcp | length' "${seed_dir}/opencode.json" 2>/dev/null || echo 0)
+    types_ok=$(jq '[.mcp | to_entries[] | .value.type == "local"] | all' "${seed_dir}/opencode.json" 2>/dev/null || echo false)
+    cmds_ok=$(jq '[.mcp | to_entries[] | (.value.command | length > 0)] | all' "${seed_dir}/opencode.json" 2>/dev/null || echo false)
+    if [[ "${mcp_count}" == "4" && "${types_ok}" == "true" && "${cmds_ok}" == "true" ]]; then
+      pass "seed-project-mcps emits 4 local MCPs with commands"
+    else
+      fail "seed-project-mcps shape wrong (count=${mcp_count} types_ok=${types_ok} cmds_ok=${cmds_ok})"
+    fi
+  else
+    fail "seed-project-mcps.sh failed against a tempdir"
+  fi
+  rm -rf "${seed_dir}"
+else
+  skip "seed-project-mcps check (jq not installed)"
+fi
+
 echo "==> graphify MCP import check (regression guard)"
 # Graphify-specific bug history: serve.py's `mcp` dep is in [mcp] extras,
 # AND graphify-out/graph.json must exist before the server binds. Both
