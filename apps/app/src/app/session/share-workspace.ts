@@ -13,6 +13,7 @@ import {
   publishWorkspaceProfileBundleFromWorkspace,
   saveWorkspaceProfileBundleToTeam,
 } from "../bundles/publish";
+import { copyToClipboard } from "../lib/clipboard";
 import { buildDenAuthUrl, readDenSettings } from "../lib/den";
 import {
   buildOpenworkWorkspaceBaseUrl,
@@ -461,7 +462,7 @@ export function createShareWorkspaceState(options: ShareWorkspaceStateOptions) {
 
       setShareWorkspaceProfileUrl(result.url);
       try {
-        await navigator.clipboard.writeText(result.url);
+        await copyToClipboard(result.url);
       } catch {
         // ignore
       }
@@ -532,7 +533,7 @@ export function createShareWorkspaceState(options: ShareWorkspaceStateOptions) {
 
       setShareSkillsSetUrl(result.url);
       try {
-        await navigator.clipboard.writeText(result.url);
+        await copyToClipboard(result.url);
       } catch {
         // ignore
       }

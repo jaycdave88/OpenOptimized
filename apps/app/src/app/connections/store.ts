@@ -38,11 +38,21 @@ export function createConnectionsStore(options: {
 }) {
   const translate = (key: string) => t(key, currentLocale());
 
+  function mcpServersChanged(current: McpServerEntry[], next: McpServerEntry[]): boolean {
+    if (current.length !== next.length) return true;
+    for (let i = 0; i < current.length; i++) {
+      if (current[i].name !== next[i].name) return true;
+      if (JSON.stringify(current[i].config) !== JSON.stringify(next[i].config)) return true;
+    }
+    return false;
+  }
+
   const [mcpServers, setMcpServers] = createSignal<McpServerEntry[]>([]);
   const [mcpStatus, setMcpStatus] = createSignal<string | null>(null);
   const [mcpLastUpdatedAt, setMcpLastUpdatedAt] = createSignal<number | null>(null);
   const [mcpStatuses, setMcpStatuses] = createSignal<McpStatusMap>({});
   const [mcpConnectingName, setMcpConnectingName] = createSignal<string | null>(null);
+  const [mcpTogglingName, setMcpTogglingName] = createSignal<string | null>(null);
   const [selectedMcp, setSelectedMcp] = createSignal<string | null>(null);
 
   const [mcpAuthModalOpen, setMcpAuthModalOpen] = createSignal(false);
@@ -169,7 +179,9 @@ export function createConnectionsStore(options: {
           name: entry.name,
           config: entry.config as McpServerEntry["config"],
         }));
-        setMcpServers(next);
+        if (mcpServersChanged(mcpServers(), next)) {
+          setMcpServers(next);
+        }
         setMcpLastUpdatedAt(Date.now());
 
         const activeClient = options.client();
@@ -203,7 +215,9 @@ export function createConnectionsStore(options: {
           name: entry.name,
           config: entry.config as McpServerEntry["config"],
         }));
-        setMcpServers(next);
+        if (mcpServersChanged(mcpServers(), next)) {
+          setMcpServers(next);
+        }
         setMcpLastUpdatedAt(Date.now());
 
         const activeClient = options.client();
@@ -254,7 +268,9 @@ export function createConnectionsStore(options: {
       }
 
       const next = parseMcpServersFromContent(config.content);
-      setMcpServers(next);
+      if (mcpServersChanged(mcpServers(), next)) {
+        setMcpServers(next);
+      }
       setMcpLastUpdatedAt(Date.now());
 
       const activeClient = options.client();
@@ -587,6 +603,68 @@ export function createConnectionsStore(options: {
     }
   }
 
+  async function toggleMcpConnection(name: string, currentlyConnected: boolean) {
+    const activeClient = await ensureActiveClient();
+    if (!activeClient) {
+      setMcpStatus(translate("mcp.connect_server_first"));
+      return;
+    }
+
+    const projectDir = options.projectDir().trim();
+    const resolvedProjectDir = await resolveProjectDir(activeClient, projectDir);
+    if (!resolvedProjectDir) {
+      setMcpStatus(translate("mcp.pick_workspace_first"));
+      return;
+    }
+
+    try {
+      setMcpStatus(null);
+      setMcpTogglingName(name);
+
+      if (currentlyConnected) {
+        unwrap(await activeClient.mcp.disconnect({ directory: resolvedProjectDir, name }));
+      } else {
+        const currentStatus = mcpStatuses()[name];
+        const entry = mcpServers().find((s) => s.name === name);
+
+        if (currentStatus?.status === "disabled" && entry) {
+          // Disabled MCPs: re-add with enabled:true to re-enable
+          unwrap(
+            await activeClient.mcp.add({
+              directory: resolvedProjectDir,
+              name,
+              config: { ...entry.config, enabled: true },
+            }),
+          );
+        } else if (currentStatus?.status === "failed" && entry) {
+          // Failed MCPs: re-add to force a full restart
+          unwrap(
+            await activeClient.mcp.add({
+              directory: resolvedProjectDir,
+              name,
+              config: entry.config,
+            }),
+          );
+        } else {
+          unwrap(await activeClient.mcp.connect({ directory: resolvedProjectDir, name }));
+        }
+      }
+
+      // Explicitly re-fetch statuses from the SDK after the toggle action
+      try {
+        const status = unwrap(await activeClient.mcp.status({ directory: resolvedProjectDir }));
+        setMcpStatuses(filterConfiguredStatuses(status as McpStatusMap, mcpServers()));
+      } catch {
+        // Fall back to full refresh if status call fails
+      }
+
+    } catch (e) {
+      setMcpStatus(e instanceof Error ? e.message : `Failed to ${currentlyConnected ? "disconnect" : "connect"} ${name}`);
+    } finally {
+      setMcpTogglingName(null);
+    }
+  }
+
   function closeMcpAuthModal() {
     setMcpAuthModalOpen(false);
     setMcpAuthEntry(null);
@@ -611,6 +689,7 @@ export function createConnectionsStore(options: {
     mcpLastUpdatedAt,
     mcpStatuses,
     mcpConnectingName,
+    mcpTogglingName,
     selectedMcp,
     setSelectedMcp,
     quickConnect: MCP_QUICK_CONNECT,
@@ -620,6 +699,7 @@ export function createConnectionsStore(options: {
     authorizeMcp,
     logoutMcpAuth,
     removeMcp,
+    toggleMcpConnection,
     mcpAuthModalOpen,
     mcpAuthEntry,
     mcpAuthNeedsReload,

@@ -1,6 +1,7 @@
 import { CheckCircle2, Loader2, X, Search, ChevronRight } from "lucide-solid";
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 
+import { copyToClipboard } from "../../lib/clipboard";
 import { isTauriRuntime } from "../../utils";
 import { compareProviders } from "../../utils/providers";
 import Button from "../../components/button";
@@ -358,11 +359,11 @@ export default function ProviderAuthModal(props: ProviderAuthModalProps) {
   const copyOauthDisplayCode = async () => {
     const code = oauthDisplayCode().trim();
     if (!code) return;
-    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+    const ok = await copyToClipboard(code);
+    if (!ok) {
       setLocalError("Clipboard is unavailable in this environment.");
       return;
     }
-    await navigator.clipboard.writeText(code);
     setOauthCodeCopied(true);
     if (typeof window === "undefined") return;
     if (oauthCodeCopiedReset !== null) {

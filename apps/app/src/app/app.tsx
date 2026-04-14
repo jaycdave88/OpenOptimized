@@ -397,6 +397,23 @@ export default function App() {
   const [developerMode, setDeveloperMode] = createSignal(false);
   const [documentVisible, setDocumentVisible] = createSignal(true);
 
+  // Safety timeout: auto-clear busy state if stuck for more than 45 seconds
+  createEffect(() => {
+    const startedAt = busyStartedAt();
+    if (!startedAt || !busy()) return;
+
+    const timer = window.setTimeout(() => {
+      if (busy()) {
+        console.warn("[openwork] busy state safety timeout fired after 45s");
+        setBusy(false);
+        setBusyLabel(null);
+        setBusyStartedAt(null);
+      }
+    }, 45_000);
+
+    onCleanup(() => window.clearTimeout(timer));
+  });
+
   const markStartupTrace = (phase: BootPhase, event: string, detail?: Record<string, unknown>) => {
     setStartupTrace((current) =>
       pushStartupTraceEvent(current, {

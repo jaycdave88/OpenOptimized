@@ -65,22 +65,26 @@
     "cocoindex": {
       "type": "local",
       "command": ["bash", "__RESOURCE__/mcp-bin/cocoindex/run.sh"],
-      "enabled": true
+      "enabled": true,
+      "timeout": 30000
     },
     "mempalace": {
       "type": "local",
       "command": ["bash", "__RESOURCE__/mcp-bin/mempalace/run.sh"],
-      "enabled": true
+      "enabled": true,
+      "timeout": 30000
     },
     "graphify": {
       "type": "local",
       "command": ["bash", "__RESOURCE__/mcp-bin/graphify/run.sh"],
-      "enabled": true
+      "enabled": true,
+      "timeout": 30000
     },
     "context-mode": {
       "type": "local",
       "command": ["bash", "__RESOURCE__/mcp-bin/context-mode/run.sh"],
-      "enabled": true
+      "enabled": true,
+      "timeout": 15000
     }
   }
 }

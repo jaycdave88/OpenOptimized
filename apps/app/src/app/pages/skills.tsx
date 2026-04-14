@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-solid";
 import { currentLocale, t } from "../../i18n";
+import { copyToClipboard } from "../lib/clipboard";
 import { DEFAULT_OPENWORK_PUBLISHER_BASE_URL, publishOpenworkBundleJson } from "../lib/publisher";
 import { buildDenAuthUrl, createDenClient, DEFAULT_DEN_BASE_URL, readDenSettings, type DenOrgSkillHubSummary } from "../lib/den";
 import { useStatusToasts, type AppStatusToastTone } from "../shell/status-toasts";
@@ -538,7 +539,7 @@ export default function SkillsView(props: SkillsViewProps) {
 
       setShareUrl(result.url);
       try {
-        await navigator.clipboard.writeText(result.url);
+        await copyToClipboard(result.url);
         showToast(translate("skills.link_copied"), "success");
       } catch {
         // ignore
@@ -554,7 +555,7 @@ export default function SkillsView(props: SkillsViewProps) {
     const url = shareUrl()?.trim();
     if (!url) return;
     try {
-      await navigator.clipboard.writeText(url);
+      await copyToClipboard(url);
       showToast(translate("skills.link_copied"), "success");
     } catch {
       setShareError(translate("skills.copy_link_failed"));

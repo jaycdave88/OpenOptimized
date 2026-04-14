@@ -20,13 +20,14 @@ use commands::command_files::{
 };
 use commands::config::{read_opencode_config, write_opencode_config};
 use commands::engine::{
-    engine_doctor, engine_info, engine_install, engine_restart, engine_start, engine_stop,
+    engine_doctor, engine_info, engine_install, engine_restart, engine_start, engine_start_async,
+    engine_stop,
 };
 use commands::misc::{
     app_build_info, nuke_openwork_and_opencode_config_and_exit, opencode_mcp_auth,
     reset_opencode_cache, reset_openwork_state,
 };
-use commands::ollama::{ollama_list_models, ollama_pull_model, ollama_status};
+use commands::ollama::{ollama_get_endpoint, ollama_list_models, ollama_pull_model, ollama_set_endpoint, ollama_status};
 use commands::oo_bootstrap::oo_bootstrap;
 use commands::oo_extras::{
     agency_agents_install, agency_agents_list, flash_moe_install, flash_moe_status,
@@ -174,6 +175,7 @@ pub fn run() {
         .manage(WorkspaceWatchState::default())
         .invoke_handler(tauri::generate_handler![
             engine_start,
+            engine_start_async,
             engine_stop,
             engine_info,
             engine_doctor,
@@ -231,6 +233,8 @@ pub fn run() {
             ollama_status,
             ollama_list_models,
             ollama_pull_model,
+            ollama_set_endpoint,
+            ollama_get_endpoint,
             oo_mcp_status,
             oo_mcp_restart,
             oo_mcp_boot,

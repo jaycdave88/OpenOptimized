@@ -31,6 +31,30 @@ pub fn build_opencode_router_args(workspace_path: &str, opencode_url: Option<&st
     args
 }
 
+/// Resolve the opencode-router command, with a dev-mode `bun` fallback.
+/// See `resolve_orchestrator_command` for rationale.
+fn resolve_opencode_router_command(
+    app: &AppHandle,
+) -> tauri_plugin_shell::process::Command {
+    if cfg!(debug_assertions) {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        if let Some(repo_root) = manifest.parent().and_then(|p| p.parent()).and_then(|p| p.parent())
+        {
+            let cli_ts = repo_root.join("apps").join("opencode-router").join("src").join("cli.ts");
+            if cli_ts.exists() {
+                return app
+                    .shell()
+                    .command("bun")
+                    .args(vec![cli_ts.to_string_lossy().to_string()]);
+            }
+        }
+    }
+    match app.shell().sidecar("opencode-router") {
+        Ok(command) => command,
+        Err(_) => app.shell().command("opencode-router"),
+    }
+}
+
 pub fn spawn_opencode_router(
     app: &AppHandle,
     workspace_path: &str,
@@ -39,10 +63,7 @@ pub fn spawn_opencode_router(
     opencode_password: Option<&str>,
     health_port: u16,
 ) -> Result<(Receiver<CommandEvent>, CommandChild), String> {
-    let command = match app.shell().sidecar("opencode-router") {
-        Ok(command) => command,
-        Err(_) => app.shell().command("opencode-router"),
-    };
+    let command = resolve_opencode_router_command(app);
 
     let args = build_opencode_router_args(workspace_path, opencode_url);
 

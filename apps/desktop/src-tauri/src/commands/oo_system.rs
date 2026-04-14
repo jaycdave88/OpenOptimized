@@ -36,10 +36,9 @@ fn probe(cmd: &str) -> Option<String> {
 }
 
 fn ollama_running() -> bool {
-    matches!(
-        ureq::get("http://127.0.0.1:11434/api/version").call(),
-        Ok(_)
-    )
+    let base = super::ollama::get_ollama_base();
+    let url = format!("{}/api/version", base);
+    matches!(ureq::get(&url).call(), Ok(_))
 }
 
 #[tauri::command]

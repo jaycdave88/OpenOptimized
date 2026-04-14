@@ -30,6 +30,7 @@ import {
   summarizeStep,
 } from "../../utils";
 import PartView from "../part-view";
+import { copyToClipboard } from "../../lib/clipboard";
 import { perfNow, recordPerfLog } from "../../lib/perf-log";
 import { t } from "../../../i18n";
 
@@ -326,7 +327,7 @@ export default function MessageList(props: MessageListProps) {
 
   const handleCopy = async (text: string, id: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyToClipboard(text);
       setCopyingId(id);
       if (copyTimeout !== undefined) {
         window.clearTimeout(copyTimeout);

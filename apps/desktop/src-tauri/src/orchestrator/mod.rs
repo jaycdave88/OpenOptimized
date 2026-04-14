@@ -242,14 +242,42 @@ pub fn request_orchestrator_shutdown(data_dir: &str) -> Result<bool, String> {
     Ok(true)
 }
 
+/// In dev mode on macOS, Bun-compiled sidecar binaries may be killed by
+/// Gatekeeper/syspolicyd (SIGKILL / exit 137) because they lack a valid code
+/// signature and carry the com.apple.provenance extended attribute.  When
+/// `dev_mode` is true, fall back to running the orchestrator TypeScript source
+/// directly via `bun` so the dev build always works.
+fn resolve_orchestrator_command(
+    app: &AppHandle,
+    dev_mode: bool,
+) -> tauri_plugin_shell::process::Command {
+    // In dev mode, prefer running the orchestrator source with `bun` to
+    // avoid macOS Gatekeeper killing unsigned compiled binaries.
+    if dev_mode {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        if let Some(repo_root) = manifest.parent().and_then(|p| p.parent()).and_then(|p| p.parent())
+        {
+            let cli_ts = repo_root.join("apps").join("orchestrator").join("src").join("cli.ts");
+            if cli_ts.exists() {
+                return app
+                    .shell()
+                    .command("bun")
+                    .args(vec![cli_ts.to_string_lossy().to_string()]);
+            }
+        }
+    }
+
+    match app.shell().sidecar("openwork-orchestrator") {
+        Ok(command) => command,
+        Err(_) => app.shell().command("openwork"),
+    }
+}
+
 pub fn spawn_orchestrator_daemon(
     app: &AppHandle,
     options: &OrchestratorSpawnOptions,
 ) -> Result<(tauri::async_runtime::Receiver<CommandEvent>, CommandChild), String> {
-    let command = match app.shell().sidecar("openwork-orchestrator") {
-        Ok(command) => command,
-        Err(_) => app.shell().command("openwork"),
-    };
+    let command = resolve_orchestrator_command(app, options.dev_mode);
 
     let mut args = vec![
         "daemon".to_string(),

@@ -22,6 +22,8 @@ use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::engine::manager::EngineManager;
+
 const STATUS_EVENT: &str = "mcp.status";
 const STDERR_EVENT: &str = "mcp.stderr";
 const READY_EVENT: &str = "mcp.ready";
@@ -145,12 +147,23 @@ fn spawn_supervisor(app: &AppHandle) -> Result<(), String> {
 
     let data_dir = user_data_dir(app).ok_or_else(|| "app data dir unavailable".to_string())?;
 
-    let mut child = match Command::new(&bin)
-        .env("OO_USER_DATA_DIR", &data_dir)
+    // Pass the active workspace directory so MCP servers (e.g. graphify)
+    // can find project-relative files like graphify-out/graph.json.
+    let mut cmd = Command::new(&bin);
+    cmd.env("OO_USER_DATA_DIR", &data_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(Stdio::piped());
+
+    if let Some(engine_mgr) = app.try_state::<EngineManager>() {
+        if let Ok(state) = engine_mgr.inner.lock() {
+            if let Some(ref project_dir) = state.project_dir {
+                cmd.env("OO_WORKSPACE_DIR", project_dir);
+            }
+        }
+    }
+
+    let mut child = match cmd.spawn()
     {
         Ok(c) => c,
         Err(e) => {

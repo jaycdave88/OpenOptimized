@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::opencode_router::opencodeRouter_start;
 use crate::config::{read_opencode_config, write_opencode_config};
@@ -511,7 +511,7 @@ pub fn engine_start(
             .ok()
             .and_then(|value| value.trim().parse::<u64>().ok())
             .filter(|value| *value >= 1_000)
-            .unwrap_or(180_000);
+            .unwrap_or(30_000);
 
         let health = orchestrator::wait_for_orchestrator(&daemon_base_url, health_timeout_ms)
             .map_err(|e| {
@@ -759,4 +759,353 @@ pub fn engine_start(
     }
 
     Ok(EngineManager::snapshot_locked(&mut state))
+}
+
+
+#[tauri::command]
+pub fn engine_start_async(
+    app: AppHandle,
+    manager: State<EngineManager>,
+    orchestrator_manager: State<OrchestratorManager>,
+    openwork_manager: State<OpenworkServerManager>,
+    opencode_router_manager: State<OpenCodeRouterManager>,
+    project_dir: String,
+    prefer_sidecar: Option<bool>,
+    opencode_bin_path: Option<String>,
+    opencode_enable_exa: Option<bool>,
+    openwork_remote_access: Option<bool>,
+    runtime: Option<EngineRuntime>,
+    workspace_paths: Option<Vec<String>>,
+) -> Result<EngineInfo, String> {
+    let project_dir = project_dir.trim().to_string();
+    if project_dir.is_empty() {
+        return Err("projectDir is required".to_string());
+    }
+
+    std::fs::create_dir_all(&project_dir)
+        .map_err(|e| format!("Failed to create projectDir directory: {e}"))?;
+
+    let config = read_opencode_config("project", &project_dir)?;
+    if !config.exists {
+        let content = serde_json::to_string_pretty(&json!({
+            "$schema": "https://opencode.ai/config.json",
+        }))
+        .map_err(|e| format!("Failed to serialize opencode config: {e}"))?;
+        let write_result = write_opencode_config("project", &project_dir, &format!("{content}\n"))?;
+        if !write_result.ok {
+            return Err(write_result.stderr);
+        }
+    }
+
+    let runtime = runtime.unwrap_or(EngineRuntime::Orchestrator);
+    let mut workspace_paths = workspace_paths.unwrap_or_default();
+    workspace_paths.retain(|path| !path.trim().is_empty());
+    workspace_paths.retain(|path| path.trim() != project_dir);
+    workspace_paths.insert(0, project_dir.clone());
+
+    let bind_host = "127.0.0.1".to_string();
+    let port = find_free_port()?;
+    let dev_mode = openwork_dev_mode_enabled();
+    let openwork_remote_access_enabled = openwork_remote_access.unwrap_or(false);
+    let (managed_opencode_username, managed_opencode_password) =
+        generate_managed_opencode_credentials();
+    let opencode_username = Some(managed_opencode_username);
+    let opencode_password = Some(managed_opencode_password);
+
+    let mut state = manager.inner.lock().expect("engine mutex poisoned");
+    EngineManager::stop_locked(&mut state);
+    if let Ok(mut orchestrator_state) = orchestrator_manager.inner.lock() {
+        OrchestratorManager::stop_locked(&mut orchestrator_state);
+    }
+    state.runtime = runtime.clone();
+
+    let resource_dir = app.path().resource_dir().ok();
+    let current_bin_dir = tauri::process::current_binary(&app.env())
+        .ok()
+        .and_then(|path| path.parent().map(|parent| parent.to_path_buf()));
+    let prefer_sidecar = prefer_sidecar.unwrap_or(false);
+    let _guard = EnvVarGuard::apply("OPENCODE_BIN_PATH", opencode_bin_path.as_deref());
+    let (program, _in_path, notes) = resolve_engine_path(
+        prefer_sidecar,
+        resource_dir.as_deref(),
+        current_bin_dir.as_deref(),
+    );
+    let Some(program) = program else {
+        let notes_text = notes.join("\n");
+        let install_command = pinned_opencode_install_command();
+        return Err(format!(
+            "OpenCode CLI not found.\n\nInstall with:\n- {install_command}\n\nNotes:\n{notes_text}"
+        ));
+    };
+
+    // For non-orchestrator runtime, fall back to the blocking engine_start.
+    if runtime != EngineRuntime::Orchestrator {
+        drop(state);
+        return engine_start(
+            app,
+            manager,
+            orchestrator_manager,
+            openwork_manager,
+            opencode_router_manager,
+            project_dir,
+            Some(prefer_sidecar),
+            opencode_bin_path,
+            opencode_enable_exa,
+            openwork_remote_access,
+            Some(runtime),
+            Some(workspace_paths),
+        );
+    }
+
+    // --- Orchestrator path: spawn + return immediately ---
+    drop(state);
+    let data_dir = orchestrator::resolve_orchestrator_data_dir();
+    let daemon_port = find_free_port()?;
+    let daemon_host = "127.0.0.1".to_string();
+    let opencode_bin = program.to_string_lossy().to_string();
+    let spawn_options = OrchestratorSpawnOptions {
+        data_dir: data_dir.clone(),
+        dev_mode,
+        daemon_host: daemon_host.clone(),
+        daemon_port,
+        opencode_bin,
+        opencode_host: bind_host.clone(),
+        opencode_workdir: project_dir.clone(),
+        opencode_port: Some(port),
+        opencode_username: opencode_username.clone(),
+        opencode_password: opencode_password.clone(),
+        opencode_enable_exa: opencode_enable_exa.unwrap_or(false),
+        cors: Some("*".to_string()),
+    };
+
+    let (mut rx, child) = orchestrator::spawn_orchestrator_daemon(&app, &spawn_options)?;
+
+    let _ = orchestrator::write_orchestrator_auth(
+        &data_dir,
+        opencode_username.as_deref(),
+        opencode_password.as_deref(),
+        Some(project_dir.as_str()),
+    );
+
+    {
+        let mut orchestrator_state = orchestrator_manager
+            .inner
+            .lock()
+            .map_err(|_| "orchestrator mutex poisoned".to_string())?;
+        orchestrator_state.child = Some(child);
+        orchestrator_state.child_exited = false;
+        orchestrator_state.data_dir = Some(data_dir.clone());
+        orchestrator_state.last_stdout = None;
+        orchestrator_state.last_stderr = None;
+    }
+
+    // Pipe orchestrator stdout/stderr in a background task (same as engine_start).
+    let orchestrator_state_handle = orchestrator_manager.inner.clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(line_bytes) => {
+                    let line = String::from_utf8_lossy(&line_bytes).to_string();
+                    if let Ok(mut state) = orchestrator_state_handle.try_lock() {
+                        let next = state.last_stdout.as_deref().unwrap_or_default().to_string()
+                            + &line;
+                        state.last_stdout = Some(truncate_output(&next, 8000));
+                    }
+                }
+                CommandEvent::Stderr(line_bytes) => {
+                    let line = String::from_utf8_lossy(&line_bytes).to_string();
+                    if let Ok(mut state) = orchestrator_state_handle.try_lock() {
+                        let next = state.last_stderr.as_deref().unwrap_or_default().to_string()
+                            + &line;
+                        state.last_stderr = Some(truncate_output(&next, 8000));
+                    }
+                }
+                CommandEvent::Terminated(_) => {
+                    if let Ok(mut state) = orchestrator_state_handle.try_lock() {
+                        state.child_exited = true;
+                    }
+                }
+                CommandEvent::Error(message) => {
+                    if let Ok(mut state) = orchestrator_state_handle.try_lock() {
+                        state.child_exited = true;
+                        let next = state.last_stderr.as_deref().unwrap_or_default().to_string()
+                            + &message;
+                        state.last_stderr = Some(truncate_output(&next, 8000));
+                    }
+                }
+                _ => {}
+            }
+        }
+    });
+
+    let daemon_base_url = format!("http://{}:{}", daemon_host, daemon_port);
+    let expected_opencode_url = format!("http://127.0.0.1:{port}");
+
+    // Return immediately with a "starting" EngineInfo.
+    let starting_info = EngineInfo {
+        running: false,
+        runtime: EngineRuntime::Orchestrator,
+        base_url: Some(expected_opencode_url.clone()),
+        project_dir: Some(project_dir.clone()),
+        hostname: Some("127.0.0.1".to_string()),
+        port: Some(port),
+        opencode_username: opencode_username.clone(),
+        opencode_password: opencode_password.clone(),
+        pid: None,
+        last_stdout: None,
+        last_stderr: None,
+    };
+
+    // Clone Arc handles for the background task.
+    let engine_state_handle = manager.inner.clone();
+    let bg_app = app.clone();
+    let bg_project_dir = project_dir.clone();
+    let bg_opencode_username = opencode_username.clone();
+    let bg_opencode_password = opencode_password.clone();
+    let bg_workspace_paths = workspace_paths.clone();
+
+    // Background task: health check + start ancillary services + emit events.
+    tauri::async_runtime::spawn(async move {
+        let health_timeout_ms = std::env::var("OPENWORK_ORCHESTRATOR_START_TIMEOUT_MS")
+            .ok()
+            .and_then(|value| value.trim().parse::<u64>().ok())
+            .filter(|value| *value >= 1_000)
+            .unwrap_or(30_000);
+
+        let max_attempts = (health_timeout_ms / 200).max(1);
+        let start = std::time::Instant::now();
+        let mut attempt: u64 = 0;
+        #[allow(unused_assignments)]
+        let mut last_error = String::from("Timed out waiting for orchestrator");
+
+        loop {
+            attempt += 1;
+            let _ = bg_app.emit(
+                "engine:progress",
+                serde_json::json!({
+                    "phase": "orchestrator_health_check",
+                    "attempt": attempt,
+                    "maxAttempts": max_attempts,
+                }),
+            );
+
+            match orchestrator::fetch_orchestrator_health(&daemon_base_url) {
+                Ok(health) if health.ok => {
+                    // Orchestrator is healthy — proceed.
+                    let opencode = match health.opencode {
+                        Some(oc) => oc,
+                        None => {
+                            let _ = bg_app.emit(
+                                "engine:error",
+                                serde_json::json!({
+                                    "error": "Orchestrator did not report OpenCode status",
+                                }),
+                            );
+                            return;
+                        }
+                    };
+
+                    let opencode_port = opencode.port;
+                    let opencode_base_url = format!("http://127.0.0.1:{opencode_port}");
+                    let opencode_connect_url = opencode_base_url.clone();
+
+                    // Update EngineManager state.
+                    if let Ok(mut state) = engine_state_handle.lock() {
+                        state.runtime = EngineRuntime::Orchestrator;
+                        state.child = None;
+                        state.child_exited = false;
+                        state.project_dir = Some(bg_project_dir.clone());
+                        state.hostname = Some("127.0.0.1".to_string());
+                        state.port = Some(opencode_port);
+                        state.base_url = Some(opencode_base_url.clone());
+                        state.opencode_username = bg_opencode_username.clone();
+                        state.opencode_password = bg_opencode_password.clone();
+                        state.last_stdout = None;
+                        state.last_stderr = None;
+                    }
+
+                    // Start openwork-server.
+                    let opencode_router_health_port =
+                        resolve_opencode_router_health_port().ok();
+
+                    let openwork_mgr: tauri::State<OpenworkServerManager> = bg_app.state();
+                    if let Err(error) = start_openwork_server(
+                        &bg_app,
+                        &openwork_mgr,
+                        &bg_workspace_paths,
+                        Some(&opencode_connect_url),
+                        bg_opencode_username.as_deref(),
+                        bg_opencode_password.as_deref(),
+                        opencode_router_health_port,
+                        openwork_remote_access_enabled,
+                    ) {
+                        if let Ok(mut state) = engine_state_handle.lock() {
+                            state.last_stderr = Some(truncate_output(
+                                &format!("OpenWork server: {error}"),
+                                8000,
+                            ));
+                        }
+                    }
+
+                    // Start opencode-router.
+                    let router_mgr: tauri::State<OpenCodeRouterManager> = bg_app.state();
+                    if let Err(error) = opencodeRouter_start(
+                        bg_app.clone(),
+                        router_mgr,
+                        bg_project_dir.clone(),
+                        Some(opencode_connect_url),
+                        bg_opencode_username.clone(),
+                        bg_opencode_password.clone(),
+                        opencode_router_health_port,
+                    ) {
+                        if let Ok(mut state) = engine_state_handle.lock() {
+                            state.last_stderr = Some(truncate_output(
+                                &format!("OpenCodeRouter: {error}"),
+                                8000,
+                            ));
+                        }
+                    }
+
+                    // Emit ready event.
+                    let ready_info = EngineInfo {
+                        running: true,
+                        runtime: EngineRuntime::Orchestrator,
+                        base_url: Some(opencode_base_url),
+                        project_dir: Some(bg_project_dir),
+                        hostname: Some("127.0.0.1".to_string()),
+                        port: Some(opencode_port),
+                        opencode_username: bg_opencode_username,
+                        opencode_password: bg_opencode_password,
+                        pid: Some(opencode.pid),
+                        last_stdout: None,
+                        last_stderr: None,
+                    };
+                    let _ = bg_app.emit("engine:ready", &ready_info);
+                    return;
+                }
+                Ok(_) => {
+                    last_error = "Orchestrator reported unhealthy".to_string();
+                }
+                Err(err) => {
+                    last_error = err;
+                }
+            }
+
+            if start.elapsed().as_millis() >= health_timeout_ms as u128 {
+                let error_msg = format!(
+                    "Failed to start orchestrator (waited {health_timeout_ms}ms): {}",
+                    last_error,
+                );
+                let _ = bg_app.emit(
+                    "engine:error",
+                    serde_json::json!({ "error": error_msg }),
+                );
+                return;
+            }
+
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+    });
+
+    Ok(starting_info)
 }

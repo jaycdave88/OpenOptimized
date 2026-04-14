@@ -1,6 +1,7 @@
 import { Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
 import { ArrowLeft, MonitorUp, Rocket, X } from "lucide-solid";
 import { t } from "../../i18n";
+import { copyToClipboard } from "../lib/clipboard";
 
 import ShareWorkspaceAccessPanel from "./share-workspace-access-panel";
 import ShareWorkspaceTemplatePanel from "./share-workspace-template-panel";
@@ -89,7 +90,7 @@ export default function ShareWorkspaceModal(props: ShareWorkspaceModalProps) {
     const text = value?.trim() ?? "";
     if (!text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      await copyToClipboard(text);
       setCopiedKey(key);
       window.setTimeout(() => {
         setCopiedKey((current) => (current === key ? null : current));

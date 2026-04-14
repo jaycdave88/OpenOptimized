@@ -9,6 +9,8 @@ use tauri::AppHandle;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
+
+
 pub const OPENWORK_PORT_RANGE_START: u16 = 48_000;
 pub const OPENWORK_PORT_RANGE_END: u16 = 51_000;
 const PREFERRED_PORT_RETRY_ATTEMPTS: usize = 20;
@@ -192,6 +194,31 @@ pub fn build_openwork_args(
     args
 }
 
+/// Resolve the openwork-server command, with a dev-mode `bun` fallback.
+/// See `resolve_orchestrator_command` in the orchestrator module for the
+/// rationale (macOS Gatekeeper kills unsigned Bun-compiled binaries).
+fn resolve_openwork_server_command(
+    app: &AppHandle,
+) -> tauri_plugin_shell::process::Command {
+    if cfg!(debug_assertions) {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        if let Some(repo_root) = manifest.parent().and_then(|p| p.parent()).and_then(|p| p.parent())
+        {
+            let cli_ts = repo_root.join("apps").join("server").join("src").join("cli.ts");
+            if cli_ts.exists() {
+                return app
+                    .shell()
+                    .command("bun")
+                    .args(vec![cli_ts.to_string_lossy().to_string()]);
+            }
+        }
+    }
+    match app.shell().sidecar("openwork-server") {
+        Ok(command) => command,
+        Err(_) => app.shell().command("openwork-server"),
+    }
+}
+
 pub fn spawn_openwork_server(
     app: &AppHandle,
     host: &str,
@@ -205,10 +232,7 @@ pub fn spawn_openwork_server(
     opencode_password: Option<&str>,
     opencode_router_health_port: Option<u16>,
 ) -> Result<(Receiver<CommandEvent>, CommandChild), String> {
-    let command = match app.shell().sidecar("openwork-server") {
-        Ok(command) => command,
-        Err(_) => app.shell().command("openwork-server"),
-    };
+    let command = resolve_openwork_server_command(app);
 
     let args = build_openwork_args(
         host,

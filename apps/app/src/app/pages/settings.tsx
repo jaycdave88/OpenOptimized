@@ -35,6 +35,7 @@ import ExtensionsView from "./extensions";
 import IdentitiesView from "./identities";
 import AutomationsView from "./automations";
 import SkillsView from "./skills";
+import { copyToClipboard } from "../lib/clipboard";
 import { buildFeedbackUrl } from "../lib/feedback";
 import { clearDevLogs, formatDevLogText, readDevLogs } from "../lib/dev-log";
 import { getOpenWorkDeployment } from "../lib/openwork-deployment";
@@ -1136,13 +1137,13 @@ export default function SettingsView(props: SettingsViewProps) {
   );
 
   const copyRuntimeDebugReport = async () => {
-    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
-      setDebugReportStatus(t("settings.clipboard_unavailable"));
-      return;
-    }
     try {
-      await navigator.clipboard.writeText(runtimeDebugReportJson());
-      setDebugReportStatus(t("settings.copied_debug_report"));
+      const ok = await copyToClipboard(runtimeDebugReportJson());
+      if (ok) {
+        setDebugReportStatus(t("settings.copied_debug_report"));
+      } else {
+        setDebugReportStatus(t("settings.clipboard_unavailable"));
+      }
     } catch (error) {
       setDebugReportStatus(
         error instanceof Error
@@ -1186,13 +1187,13 @@ export default function SettingsView(props: SettingsViewProps) {
   );
 
   const copyDeveloperLog = async () => {
-    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
-      setDevLogStatus(t("settings.devlog_clipboard_unavailable"));
-      return;
-    }
     try {
-      await navigator.clipboard.writeText(developerLogText());
-      setDevLogStatus(t("settings.devlog_copied"));
+      const ok = await copyToClipboard(developerLogText());
+      if (ok) {
+        setDevLogStatus(t("settings.devlog_copied"));
+      } else {
+        setDevLogStatus(t("settings.devlog_clipboard_unavailable"));
+      }
     } catch (error) {
       setDevLogStatus(
         error instanceof Error
